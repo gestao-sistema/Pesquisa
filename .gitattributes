@@ -1,0 +1,12 @@
+# O Railway compila e roda em Linux; o desenvolvimento é no Windows.
+# Normalizar para LF no repositório evita que finais de linha CRLF vazem
+# para o servidor e apareçam como diferença em todo arquivo.
+* text=auto eol=lf
+
+# Binários não devem passar por normalização.
+*.png binary
+*.jpg binary
+*.webp binary
+*.ico binary
+*.woff2 binary
+*.xlsx binary
