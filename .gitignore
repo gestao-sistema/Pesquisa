@@ -1,0 +1,10 @@
+node_modules/
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
+Thumbs.db
+
+# configuração local de ferramentas, não do projeto
+.claude/settings.local.json

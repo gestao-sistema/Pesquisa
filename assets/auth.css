@@ -1,0 +1,97 @@
+/* =========================================================
+   auth.css — telas de entrada: login e troca de senha.
+   ========================================================= */
+
+body.auth {
+  min-height: 100vh;
+  display: grid;
+  place-items: center;
+  padding: 24px;
+  background:
+    radial-gradient(80% 60% at 50% 0%, var(--surface-3) 0%, transparent 60%),
+    var(--page);
+}
+
+.auth-caixa {
+  width: 100%;
+  max-width: 420px;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  box-shadow: var(--shadow-lg);
+  padding: 34px 32px 30px;
+  position: relative;
+  overflow: hidden;
+}
+.auth-caixa::before {
+  content: ''; position: absolute; inset: 0 0 auto 0; height: 4px;
+  background: linear-gradient(90deg, var(--brand), var(--sand));
+}
+
+.auth-marca { display: flex; align-items: center; gap: 11px; margin-bottom: 26px; }
+.auth-marca .selo {
+  width: 34px; height: 34px; border-radius: 10px; flex: none;
+  background: var(--brand); color: #fff;
+  display: grid; place-items: center;
+  font-family: var(--display); font-size: 17px; font-weight: 600;
+}
+.auth-marca .txt { font-size: 14px; font-weight: 600; line-height: 1.25; }
+.auth-marca .txt small { display: block; font-size: 11.5px; font-weight: 400; color: var(--ink-2); }
+
+.auth-caixa h1 {
+  font-family: var(--display); font-size: 23px; font-weight: 500;
+  letter-spacing: -.015em; margin: 0 0 8px;
+}
+.auth-caixa .intro { font-size: 13.5px; color: var(--ink-2); line-height: 1.6; margin: 0 0 24px; }
+
+.campo { margin-bottom: 16px; }
+.campo label {
+  display: block; font-size: 12px; font-weight: 600; color: var(--ink-2);
+  letter-spacing: .03em; text-transform: uppercase; margin-bottom: 7px;
+}
+.campo input {
+  width: 100%; font-family: inherit; font-size: 15px;
+  padding: 12px 13px; color: var(--ink);
+  background: var(--surface-2);
+  border: 1px solid var(--line); border-radius: var(--radius-sm);
+}
+.campo input:focus { outline: 2px solid var(--brand); outline-offset: 1px; border-color: var(--brand); }
+.campo .dica { font-size: 11.5px; color: var(--ink-muted); margin-top: 6px; }
+
+.btn-entrar {
+  width: 100%; font-family: inherit; font-size: 15px; font-weight: 600;
+  padding: 13px; margin-top: 6px;
+  border: none; border-radius: var(--radius-sm); cursor: pointer;
+  background: var(--brand); color: #fff;
+  transition: background .16s var(--ease);
+}
+.btn-entrar:hover { background: var(--brand-strong); }
+.btn-entrar:disabled { opacity: .55; cursor: not-allowed; }
+
+.auth-erro {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 13px; line-height: 1.5; color: var(--critical);
+  background: color-mix(in srgb, var(--critical) 8%, transparent);
+  border: 1px solid color-mix(in srgb, var(--critical) 28%, transparent);
+  border-radius: var(--radius-sm); padding: 10px 12px; margin: 0 0 18px;
+}
+@supports not (background: color-mix(in srgb, red 8%, transparent)) {
+  .auth-erro { background: var(--surface-3); border-color: var(--line); }
+}
+
+.auth-aviso {
+  display: flex; align-items: flex-start; gap: 9px;
+  font-size: 12.5px; line-height: 1.55; color: var(--ink-2);
+  background: var(--surface-3); border-left: 3px solid var(--sand);
+  border-radius: var(--radius-sm); padding: 11px 13px; margin: 0 0 20px;
+}
+.auth-aviso strong { color: var(--ink); }
+
+.auth-pe {
+  margin: 22px 0 0; padding-top: 18px; border-top: 1px solid var(--line);
+  font-size: 12px; color: var(--ink-2); text-align: center; line-height: 1.6;
+}
+.auth-pe a { color: var(--ink-2); }
+.auth-pe a:hover { color: var(--ink); }
+
+.auth-carregando { text-align: center; padding: 30px 0; color: var(--ink-2); font-size: 14px; }

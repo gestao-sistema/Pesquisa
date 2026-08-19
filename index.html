@@ -1,0 +1,185 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Pesquisa de Desligamento · Azime</title>
+<meta name="description" content="Pesquisa de desligamento da Azime. Confidencial, leva cerca de 5 minutos.">
+<script>
+  (function () {
+    try {
+      const t = localStorage.getItem('pd:tema');
+      if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,400;0,9..144,500;0,9..144,600;1,9..144,500&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/landing.css">
+</head>
+<body class="landing">
+
+<header class="heroi-topo">
+  <!-- Arcos concêntricos: profundidade sem depender de imagem externa,
+       e sem peso de download. Decorativo, então fora da árvore de acessibilidade. -->
+  <div class="heroi-arte" aria-hidden="true">
+    <svg viewBox="0 0 1200 800" preserveAspectRatio="xMaxYMid slice" fill="none">
+      <g stroke="#7FB3A0" stroke-opacity=".22" stroke-width="1">
+        <circle cx="1010" cy="330" r="120" />
+        <circle cx="1010" cy="330" r="200" />
+        <circle cx="1010" cy="330" r="285" />
+        <circle cx="1010" cy="330" r="375" />
+        <circle cx="1010" cy="330" r="470" />
+      </g>
+      <g stroke="#C9A227" stroke-opacity=".5" stroke-width="1.5" stroke-linecap="round">
+        <path d="M1010 60 A270 270 0 0 1 1246 462" />
+        <path d="M1010 130 A200 200 0 0 0 830 440" />
+      </g>
+      <circle cx="1010" cy="330" r="5" fill="#C9A227" />
+    </svg>
+  </div>
+
+  <div class="heroi-conteudo">
+    <div class="marca-topo anima">
+      <span class="marca-simbolo" aria-hidden="true">A</span>
+      <span class="marca-nome">Azime</span>
+      <span class="fim"><a href="dashboard.html">Área de gestão</a></span>
+    </div>
+
+    <div class="heroi-texto">
+      <span class="sobrelinha anima d1">Pesquisa de desligamento</span>
+      <h1 class="anima d2">Sua saída ainda pode <em>mudar</em> a Azime.</h1>
+      <p class="chamada anima d3">
+        Esta é a conversa que a gente não teve enquanto você estava aqui. Não existe
+        resposta certa ou errada — e quanto mais honesta ela for, mais útil se torna
+        para quem fica.
+      </p>
+
+      <div class="acoes-heroi anima d4">
+        <a class="btn-comecar" href="pesquisa.html">
+          Começar a pesquisa <span class="seta" aria-hidden="true">→</span>
+        </a>
+        <div class="meta-heroi">
+          <span><i class="ponto" aria-hidden="true"></i>cerca de 5 minutos</span>
+          <span><i class="ponto" aria-hidden="true"></i>22 perguntas</span>
+          <span><i class="ponto" aria-hidden="true"></i>pode ser anônima</span>
+        </div>
+      </div>
+    </div>
+  </div>
+</header>
+
+<main>
+  <section class="secao">
+    <div class="secao-cabeca">
+      <h2>O que vamos perguntar</h2>
+      <p>
+        Seis blocos, uma pergunta por tela. Só duas são obrigatórias — o setor onde você
+        trabalhava e os desafios do seu dia a dia. Todo o resto você responde se quiser.
+      </p>
+    </div>
+
+    <div class="temas">
+      <article class="tema">
+        <span class="qtd">4 perguntas</span>
+        <span class="tema-num">01</span>
+        <h3>Identificação</h3>
+        <p>Nome, cargo, setor e superior direto. Tudo opcional, menos o setor — é ele que
+           permite comparar as áreas depois.</p>
+      </article>
+
+      <article class="tema">
+        <span class="qtd">2 perguntas</span>
+        <span class="tema-num">02</span>
+        <h3>Experiência</h3>
+        <p>Quais aspectos foram os maiores desafios no seu dia a dia, de remuneração a
+           carga de trabalho e clima.</p>
+      </article>
+
+      <article class="tema">
+        <span class="qtd">2 perguntas</span>
+        <span class="tema-num">03</span>
+        <h3>Reflexão</h3>
+        <p>Se voltaria a trabalhar aqui, e os três pontos que você mudaria se fosse o dono
+           da empresa.</p>
+      </article>
+
+      <article class="tema">
+        <span class="qtd">10 perguntas</span>
+        <span class="tema-num">04</span>
+        <h3>Avaliação</h3>
+        <p>Notas de 1 a 5 para estrutura, equipe, chefia, crescimento, salário,
+           reconhecimento, comunicação, equilíbrio e onboarding.</p>
+      </article>
+
+      <article class="tema">
+        <span class="qtd">1 pergunta</span>
+        <span class="tema-num">05</span>
+        <h3>Recomendação</h3>
+        <p>De 0 a 10, o quanto você recomendaria a Azime como um bom lugar para
+           trabalhar.</p>
+      </article>
+
+      <article class="tema">
+        <span class="qtd">2 perguntas</span>
+        <span class="tema-num">06</span>
+        <h3>Fechamento</h3>
+        <p>O que poderia ter evitado sua saída, e espaço livre para o que mais você quiser
+           registrar.</p>
+      </article>
+    </div>
+  </section>
+
+  <section class="confianca">
+    <div class="secao">
+      <div class="secao-cabeca">
+        <h2>Como suas respostas são tratadas</h2>
+      </div>
+      <div class="confianca-grade">
+        <div class="confianca-item">
+          <h3><span class="marca-ok" aria-hidden="true">✓</span>Uso interno apenas</h3>
+          <p>As respostas alimentam os indicadores de RH e as decisões de gestão. Não vão
+             para fora da Azime nem entram na sua rescisão.</p>
+        </div>
+        <div class="confianca-item">
+          <h3><span class="marca-ok" aria-hidden="true">✓</span>Anônimo, se você preferir</h3>
+          <p>Nome, cargo e superior são campos opcionais. Deixe em branco e a resposta
+             segue sem identificação.</p>
+        </div>
+        <div class="confianca-item">
+          <h3><span class="marca-ok" aria-hidden="true">✓</span>Lidas por setor</h3>
+          <p>A análise é feita por área e por tema. O objetivo é achar padrão, não apontar
+             pessoa.</p>
+        </div>
+        <div class="confianca-item">
+          <h3><span class="marca-ok" aria-hidden="true">✓</span>Sem resposta certa</h3>
+          <p>Crítica dura é bem-vinda. É exatamente o tipo de informação que raramente
+             chega até aqui de outro jeito.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="secao fechamento">
+    <div class="secao-cabeca" style="margin-inline:auto">
+      <h2>Pronto para começar?</h2>
+      <p>Você pode voltar e revisar qualquer resposta antes de enviar.</p>
+    </div>
+    <a class="btn-comecar" href="pesquisa.html">
+      Começar a pesquisa <span class="seta" aria-hidden="true">→</span>
+    </a>
+  </section>
+</main>
+
+<footer class="rodape">
+  <div class="rodape-inner">
+    <span>Azime · Pesquisa de Desligamento</span>
+    <span class="fim"><a href="dashboard.html">Área de gestão</a></span>
+  </div>
+</footer>
+
+</body>
+</html>

@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Usuários · Pesquisa de Desligamento</title>
+<script>
+  (function () {
+    try {
+      const t = localStorage.getItem('pd:tema');
+      if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/admin.css">
+</head>
+<body class="admin">
+
+<div id="casca"></div>
+
+<main class="pagina">
+  <h1 class="titulo-pagina">Usuários</h1>
+  <p class="subtitulo-pagina" id="sub"></p>
+  <div id="conteudo"></div>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/stats.js"></script>
+<script src="assets/charts.js"></script>
+<script src="assets/xlsx.js"></script>
+<script src="assets/demo.js"></script>
+<script src="assets/admin.js"></script>
+<script>
+(function () {
+  const C = window.Charts, A = window.Admin, S = window.Stats;
+
+  A.iniciarSimples('usuarios.html', () => {
+    const eu = A.eu();
+    document.getElementById('sub').textContent = eu.podeAdministrarContas
+      ? 'Inclua, exclua e redefina senhas. Toda conta nova entra com senha provisória, '
+        + 'trocada obrigatoriamente no primeiro acesso.'
+      : 'Você pode incluir outras contas de RH. Excluir conta e redefinir senha são ações do TI.';
+    pintar();
+  });
+
+  async function pedir(rota, opcoes) {
+    const res = await fetch(rota, {
+      headers: { 'content-type': 'application/json', accept: 'application/json' },
+      ...opcoes,
+    });
+    let dados = {};
+    try { dados = await res.json(); } catch {}
+    if (res.status === 401) { location.href = '/login.html'; throw new Error('sessão'); }
+    return { ok: res.ok, status: res.status, dados };
+  }
+
+  function aviso(msg, tipo) {
+    const alvo = document.getElementById('aviso');
+    if (!alvo) return;
+    if (!msg) { alvo.innerHTML = ''; return; }
+    const cor = tipo === 'erro' ? 'var(--critical)' : 'var(--good)';
+    alvo.innerHTML = `<div class="faixa-modo" style="border-left-color:${cor};margin-bottom:18px">
+      <span aria-hidden="true">${tipo === 'erro' ? '⚠' : '✓'}</span>
+      <span>${C.esc(msg)}</span></div>`;
+    if (tipo !== 'erro') setTimeout(() => { if (alvo) alvo.innerHTML = ''; }, 6000);
+  }
+
+  /* ---------------- render ---------------- */
+
+  async function pintar() {
+    const conteudo = document.getElementById('conteudo');
+    conteudo.innerHTML = '<p class="carregando">Carregando contas…</p>';
+
+    let dados;
+    try { ({ dados } = await pedir('/api/usuarios')); }
+    catch { return; }
+
+    const lista = dados.usuarios || [];
+    const admin = !!dados.podeAdministrar;
+    const papeis = dados.papeisQuePodeCriar || ['rh'];
+
+    conteudo.innerHTML = `
+      <div id="aviso"></div>
+      <div class="grade">
+        <article class="cartao c8">
+          <div class="cartao-cabeca">
+            <div>
+              <h2>Contas com acesso</h2>
+              <p>${lista.length} conta${lista.length === 1 ? '' : 's'}${admin ? '' : ' de RH'}.</p>
+            </div>
+          </div>
+          <div class="tabela-wrap">
+            <table class="tabela-viz">
+              <thead><tr>
+                <th scope="col">E-mail</th>
+                <th scope="col">Perfil</th>
+                <th scope="col">Situação</th>
+                <th scope="col">Último acesso</th>
+                ${admin ? '<th scope="col">Ações</th>' : ''}
+              </tr></thead>
+              <tbody>${lista.map((u) => linha(u, admin, dados.eu)).join('')}</tbody>
+            </table>
+          </div>
+        </article>
+
+        <article class="cartao c4">
+          <div class="cartao-cabeca">
+            <div>
+              <h2>Incluir conta</h2>
+              <p>${papeis.length > 1
+                   ? 'A pessoa troca a senha no primeiro acesso.'
+                   : 'Você só pode incluir contas de RH. A pessoa troca a senha no primeiro acesso.'}</p>
+            </div>
+          </div>
+          <form id="f-novo" autocomplete="off">
+            <div class="filtro" style="margin-bottom:14px">
+              <span>E-mail</span>
+              <input type="email" id="n-email" required placeholder="nome@azime.com.br"
+                     style="min-width:0;width:100%">
+            </div>
+            <div class="filtro" style="margin-bottom:14px">
+              <span>Nome (opcional)</span>
+              <input type="text" id="n-nome" style="min-width:0;width:100%">
+            </div>
+            <div class="filtro" style="margin-bottom:14px">
+              <span>Perfil</span>
+              <select id="n-papel" style="min-width:0;width:100%" ${papeis.length === 1 ? 'disabled' : ''}>
+                ${papeis.map((p) => `<option value="${p}">${p === 'ti' ? 'TI — administra contas' : 'RH — vê a pesquisa'}</option>`).join('')}
+              </select>
+            </div>
+            <div class="filtro" style="margin-bottom:16px">
+              <span>Senha provisória</span>
+              <input type="text" id="n-senha" required minlength="8" style="min-width:0;width:100%">
+              <small class="pista">Mínimo 8 caracteres, com letras e números.
+                Combine com a pessoa por outro canal.</small>
+            </div>
+            <button class="btn-acao forte" type="submit" id="n-btn" style="width:100%">Incluir conta</button>
+          </form>
+        </article>
+
+        <article class="cartao c12">
+          <div class="cartao-cabeca">
+            <div>
+              <h2>Como o acesso está dividido</h2>
+              <p>Quem administra as contas não lê as entrevistas, e quem lê as entrevistas não distribui acesso.</p>
+            </div>
+          </div>
+          <div class="tabela-wrap">
+            <table class="tabela-viz">
+              <thead><tr>
+                <th scope="col">Ação</th><th scope="col">RH</th><th scope="col">TI</th>
+              </tr></thead>
+              <tbody>
+                ${[
+                  ['Ver dashboard, setores e respostas', true, false],
+                  ['Exportar para Excel', true, false],
+                  ['Incluir conta de RH', true, true],
+                  ['Incluir conta de TI', false, true],
+                  ['Redefinir senha de outra conta', false, true],
+                  ['Excluir conta', false, true],
+                ].map(([acao, rh, ti]) => `<tr>
+                  <th scope="row">${C.esc(acao)}</th>
+                  <td>${rh ? '<span class="st st-good"><span class="st-ponto"></span>sim</span>' : '<span style="color:var(--ink-muted)">não</span>'}</td>
+                  <td>${ti ? '<span class="st st-good"><span class="st-ponto"></span>sim</span>' : '<span style="color:var(--ink-muted)">não</span>'}</td>
+                </tr>`).join('')}
+              </tbody>
+            </table>
+          </div>
+        </article>
+      </div>`;
+
+    ligarFormulario();
+    ligarAcoes(admin);
+  }
+
+  function linha(u, admin, meuId) {
+    const souEu = u.id === meuId;
+    const situacao = u.provisoria
+      ? '<span class="pilula st-warning"><span class="st-ponto"></span>senha provisória</span>'
+      : '<span class="pilula st-good"><span class="st-ponto"></span>ativa</span>';
+    return `<tr>
+      <th scope="row">${C.esc(u.email)}${souEu ? ' <span style="color:var(--ink-muted)">(você)</span>' : ''}
+        ${u.nome ? `<br><span style="font-size:11.5px;color:var(--ink-muted)">${C.esc(u.nome)}</span>` : ''}</th>
+      <td><span class="pilula">${u.papel === 'ti' ? 'TI' : 'RH'}</span></td>
+      <td>${situacao}</td>
+      <td>${u.ultimoAcesso ? S.fmtDataHora(u.ultimoAcesso) : '<span style="color:var(--ink-muted)">nunca entrou</span>'}</td>
+      ${admin ? `<td style="white-space:nowrap">
+        <button class="btn-acao" data-acao="senha" data-id="${C.esc(u.id)}" data-email="${C.esc(u.email)}"
+                style="padding:5px 11px;font-size:12px">Redefinir senha</button>
+        ${souEu ? '' : `<button class="btn-acao" data-acao="excluir" data-id="${C.esc(u.id)}" data-email="${C.esc(u.email)}"
+                style="padding:5px 11px;font-size:12px;margin-left:6px">Excluir</button>`}
+      </td>` : ''}
+    </tr>`;
+  }
+
+  /* ---------------- ações ---------------- */
+
+  function ligarFormulario() {
+    const f = document.getElementById('f-novo');
+    f.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      aviso('');
+      const btn = document.getElementById('n-btn');
+      const corpo = {
+        email: document.getElementById('n-email').value.trim(),
+        nome: document.getElementById('n-nome').value.trim(),
+        papel: document.getElementById('n-papel').value,
+        senha: document.getElementById('n-senha').value,
+      };
+      btn.disabled = true;
+      btn.textContent = 'Incluindo…';
+
+      let r;
+      try { r = await pedir('/api/usuarios', { method: 'POST', body: JSON.stringify(corpo) }); }
+      catch { return; }
+
+      btn.disabled = false;
+      btn.textContent = 'Incluir conta';
+      if (!r.ok) { aviso(r.dados.erro || 'Não foi possível incluir a conta.', 'erro'); return; }
+      await pintar();
+      aviso(`Conta ${corpo.email} criada. Passe a senha provisória para a pessoa — ela troca no primeiro acesso.`);
+    });
+  }
+
+  function ligarAcoes(admin) {
+    if (!admin) return;
+    document.getElementById('conteudo').addEventListener('click', async (e) => {
+      const b = e.target.closest('button[data-acao]');
+      if (!b) return;
+      const { acao, id, email } = b.dataset;
+
+      if (acao === 'excluir') {
+        if (!confirm(`Excluir a conta ${email}?\n\nA pessoa perde o acesso na hora e as sessões abertas caem.`)) return;
+        b.disabled = true;
+        let r;
+        try { r = await pedir('/api/usuarios/' + encodeURIComponent(id), { method: 'DELETE' }); }
+        catch { return; }
+        if (!r.ok) { b.disabled = false; aviso(r.dados.erro || 'Não foi possível excluir.', 'erro'); return; }
+        await pintar();
+        aviso(`Conta ${email} excluída.`);
+        return;
+      }
+
+      if (acao === 'senha') {
+        const nova = prompt(`Nova senha provisória para ${email}\n\n`
+          + 'Mínimo 8 caracteres, com letras e números. A pessoa será obrigada a trocar no próximo acesso.');
+        if (nova === null) return;
+        b.disabled = true;
+        let r;
+        try {
+          r = await pedir('/api/usuarios/' + encodeURIComponent(id) + '/senha',
+            { method: 'POST', body: JSON.stringify({ senha: nova }) });
+        } catch { return; }
+        b.disabled = false;
+        if (!r.ok) { aviso(r.dados.erro || 'Não foi possível redefinir.', 'erro'); return; }
+        await pintar();
+        aviso(`Senha de ${email} redefinida. As sessões abertas dessa conta foram encerradas.`);
+      }
+    });
+  }
+})();
+</script>
+</body>
+</html>

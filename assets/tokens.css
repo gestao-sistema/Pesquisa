@@ -1,0 +1,217 @@
+/* =========================================================
+   Tokens de design — Pesquisa de Desligamento
+   Paleta de dados validada com o validador de dataviz
+   (ordinal blue, polos divergentes, contraste vs superfície).
+   Light é definido no :root puro; dark redefine apenas os tokens
+   sob prefers-color-scheme E sob [data-theme="dark"].
+   ========================================================= */
+
+:root {
+  color-scheme: light;
+
+  /* ---- Marca ---- */
+  --brand:        #3B6E62;
+  --brand-strong: #2C5449;
+  --brand-soft:   #E4EDE9;
+  --sand:         #C9A227;
+
+  /* ---- Planos ---- */
+  --page:      #F4F5F2;
+  --surface:   #FFFFFF;
+  --surface-2: #FBFBFA;
+  --surface-3: #F0F2ED;
+
+  /* ---- Tinta ---- */
+  --ink:       #1E2420;
+  --ink-2:     #5B655F;
+  --ink-muted: #7C857F;
+
+  /* ---- Linhas / cromo de gráfico ---- */
+  --line:  #DDE1DB;
+  --grid:  #E7EAE4;
+  --axis:  #C3C2B7;
+  --ring:  rgba(30, 36, 32, 0.10);
+
+  /* ---- Dados: série única (slot 1) ---- */
+  --series-1: #2a78d6;
+
+  /* ---- Dados: divergente (polos + meio neutro) ---- */
+  --div-pos: #2a78d6;
+  --div-mid: #C3C2B7;
+  --div-neg: #e34948;
+
+  /* ---- Dados: rampa sequencial (magnitude, 1 matiz) ---- */
+  --seq-1: #cde2fb;
+  --seq-2: #9ec5f4;
+  --seq-3: #6da7ec;
+  --seq-4: #3987e5;
+  --seq-5: #256abf;
+  --seq-6: #184f95;
+  --seq-0: #F0F2ED;      /* sem dado */
+
+  /* ---- Dados: rampa ordinal (passos discretos ordenados) ---- */
+  --ord-1: #86b6ef;
+  --ord-2: #5598e7;
+  --ord-3: #2a78d6;
+  --ord-4: #1c5cab;
+  --ord-5: #104281;
+
+  /* ---- Status (fixo, nunca tematizado; sempre com ícone + rótulo) ---- */
+  --good:     #0ca30c;
+  --warning:  #fab219;
+  --serious:  #ec835a;
+  --critical: #d03b3b;
+  --good-text: #006300;
+
+  /* ---- De-ênfase (forma "emphasis") ---- */
+  --dim: #C9CFC9;
+
+  /* ---- Forma ---- */
+  --radius:    14px;
+  --radius-sm: 8px;
+  --shadow:    0 1px 2px rgba(30,36,32,.04), 0 8px 24px -12px rgba(30,36,32,.12);
+  --shadow-lg: 0 2px 4px rgba(30,36,32,.05), 0 24px 48px -20px rgba(30,36,32,.22);
+
+  /* ---- Tipografia ---- */
+  --font:    'IBM Plex Sans', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --display: 'Fraunces', Georgia, serif;
+
+  /* ---- Movimento ----
+     Uma curva só para tudo, para as animações parecerem do mesmo sistema.
+     Sai desacelerando: entra rápido e assenta devagar. */
+  --ease:      cubic-bezier(.2, .8, .25, 1);
+  --dur-rapida: .22s;
+  --dur:        .5s;
+  --dur-longa:  .8s;
+}
+
+/* ------------------ Dark: preferência do sistema ------------------ */
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+
+    --brand:        #6BA695;
+    --brand-strong: #8FC3B2;
+    --brand-soft:   #1C2C27;
+    --sand:         #DCBB4E;
+
+    --page:      #0E1411;
+    --surface:   #18211D;
+    --surface-2: #141C19;
+    --surface-3: #1E2823;
+
+    --ink:       #F1F4F0;
+    --ink-2:     #A6B2AB;
+    --ink-muted: #7F8B84;
+
+    --line:  #29332F;
+    --grid:  #222C28;
+    --axis:  #383835;
+    --ring:  rgba(255, 255, 255, 0.10);
+
+    --series-1: #3987e5;
+
+    --div-pos: #3987e5;
+    --div-mid: #383835;
+    --div-neg: #e66767;
+
+    --seq-1: #104281;
+    --seq-2: #184f95;
+    --seq-3: #256abf;
+    --seq-4: #2a78d6;
+    --seq-5: #5598e7;
+    --seq-6: #86b6ef;
+    --seq-0: #1E2823;
+
+    --ord-1: #cde2fb;
+    --ord-2: #9ec5f4;
+    --ord-3: #6da7ec;
+    --ord-4: #3987e5;
+    --ord-5: #184f95;
+
+    --good-text: #0ca30c;
+
+    --dim: #3A453F;
+
+    --shadow:    0 1px 2px rgba(0,0,0,.30), 0 8px 24px -12px rgba(0,0,0,.55);
+    --shadow-lg: 0 2px 4px rgba(0,0,0,.35), 0 24px 48px -20px rgba(0,0,0,.7);
+  }
+}
+
+/* ------------------ Dark: escolha explícita (vence sempre) ------------------ */
+:root[data-theme="dark"] {
+  color-scheme: dark;
+
+  --brand:        #6BA695;
+  --brand-strong: #8FC3B2;
+  --brand-soft:   #1C2C27;
+  --sand:         #DCBB4E;
+
+  --page:      #0E1411;
+  --surface:   #18211D;
+  --surface-2: #141C19;
+  --surface-3: #1E2823;
+
+  --ink:       #F1F4F0;
+  --ink-2:     #A6B2AB;
+  --ink-muted: #7F8B84;
+
+  --line:  #29332F;
+  --grid:  #222C28;
+  --axis:  #383835;
+  --ring:  rgba(255, 255, 255, 0.10);
+
+  --series-1: #3987e5;
+
+  --div-pos: #3987e5;
+  --div-mid: #383835;
+  --div-neg: #e66767;
+
+  --seq-1: #104281;
+  --seq-2: #184f95;
+  --seq-3: #256abf;
+  --seq-4: #2a78d6;
+  --seq-5: #5598e7;
+  --seq-6: #86b6ef;
+  --seq-0: #1E2823;
+
+  --ord-1: #cde2fb;
+  --ord-2: #9ec5f4;
+  --ord-3: #6da7ec;
+  --ord-4: #3987e5;
+  --ord-5: #184f95;
+
+  --good-text: #0ca30c;
+
+  --dim: #3A453F;
+
+  --shadow:    0 1px 2px rgba(0,0,0,.30), 0 8px 24px -12px rgba(0,0,0,.55);
+  --shadow-lg: 0 2px 4px rgba(0,0,0,.35), 0 24px 48px -20px rgba(0,0,0,.7);
+}
+
+* { box-sizing: border-box; }
+
+html { -webkit-text-size-adjust: 100%; }
+
+body {
+  margin: 0;
+  background: var(--page);
+  color: var(--ink);
+  font-family: var(--font);
+  -webkit-font-smoothing: antialiased;
+}
+
+::selection { background: var(--brand-soft); color: var(--ink); }
+
+:focus-visible {
+  outline: 2px solid var(--brand);
+  outline-offset: 2px;
+  border-radius: 4px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: .001ms !important;
+    transition-duration: .001ms !important;
+  }
+}

@@ -1,0 +1,205 @@
+/* =========================================================
+   landing.css — a porta de entrada.
+
+   O herói é escuro nos dois temas, de propósito: é uma superfície de
+   marca, não uma tela de leitura de dados. Todo o resto da página
+   segue os tokens e acompanha claro/escuro.
+
+   Contrastes verificados: branco sobre o verde 12,3:1 · corpo
+   9,5:1 · sobrelinha 6,9:1 · texto do botão sobre areia 6,5:1.
+   ========================================================= */
+
+body.landing { min-height: 100vh; display: flex; flex-direction: column; }
+
+/* ============ Herói ============ */
+.heroi-topo {
+  position: relative;
+  overflow: hidden;
+  color: #FFFFFF;
+  background:
+    radial-gradient(90% 130% at 12% 0%, #2F5A4C 0%, transparent 58%),
+    radial-gradient(70% 110% at 100% 100%, #14302A 0%, transparent 60%),
+    #1E3A32;
+}
+
+/* Malha de arcos concêntricos: dá profundidade sem imagem externa. */
+.heroi-arte {
+  position: absolute; inset: 0;
+  pointer-events: none;
+  opacity: .5;
+}
+.heroi-arte svg { width: 100%; height: 100%; display: block; }
+
+.heroi-conteudo {
+  position: relative;
+  max-width: 1180px; margin: 0 auto;
+  padding: clamp(28px, 4vw, 44px) clamp(20px, 4vw, 56px) clamp(56px, 7vw, 92px);
+  display: flex; flex-direction: column; min-height: min(100vh, 860px);
+}
+
+/* ---- marca ---- */
+.marca-topo { display: flex; align-items: center; gap: 12px; margin-bottom: auto; }
+.marca-simbolo {
+  width: 38px; height: 38px; border-radius: 11px; flex: none;
+  background: #C9A227; color: #1E2420;
+  display: grid; place-items: center;
+  font-family: var(--display); font-size: 20px; font-weight: 600;
+  letter-spacing: -.02em;
+}
+.marca-nome {
+  font-family: var(--display); font-size: 19px; font-weight: 600;
+  letter-spacing: .16em; text-transform: uppercase;
+}
+.marca-topo .fim { margin-left: auto; }
+.marca-topo .fim a {
+  color: #A8C9BC; font-size: 12.5px; text-decoration: none;
+  padding: 8px 14px; border-radius: 999px;
+  border: 1px solid rgba(255, 255, 255, .16);
+  transition: background .18s var(--ease), color .18s var(--ease);
+}
+.marca-topo .fim a:hover { background: rgba(255, 255, 255, .1); color: #FFFFFF; }
+
+/* ---- chamada ---- */
+/* Medida explícita em px, não em `ch`: o `ch` vale a largura do "0" no
+   tamanho do CORPO (~0,6em), então 46ch davam uns 440px e a manchete de
+   76px quebrava a cada duas palavras. */
+.heroi-texto { max-width: min(780px, 100%); padding-top: clamp(40px, 7vw, 88px); }
+
+.sobrelinha {
+  display: inline-flex; align-items: center; gap: 9px;
+  font-size: 12px; font-weight: 600; letter-spacing: .12em;
+  text-transform: uppercase; color: #A8C9BC;
+  margin-bottom: 22px;
+}
+.sobrelinha::before {
+  content: ''; width: 26px; height: 1px; background: #C9A227; flex: none;
+}
+
+.heroi-topo h1 {
+  font-family: var(--display);
+  font-size: clamp(38px, 6.6vw, 76px);
+  font-weight: 500; line-height: 1.02; letter-spacing: -.028em;
+  margin: 0 0 22px;
+}
+.heroi-topo h1 em { font-style: italic; color: #E7C55A; }
+
+.heroi-topo .chamada {
+  font-size: clamp(15px, 1.5vw, 17.5px); line-height: 1.65;
+  color: #D8E5DF; margin: 0 0 34px; max-width: 52ch;
+}
+
+/* ---- ações ---- */
+.acoes-heroi { display: flex; align-items: center; gap: 16px; flex-wrap: wrap; }
+
+.btn-comecar {
+  display: inline-flex; align-items: center; gap: 10px;
+  font-family: inherit; font-size: 16px; font-weight: 600;
+  padding: 16px 30px; border-radius: 999px; border: none; cursor: pointer;
+  background: #C9A227; color: #1E2420; text-decoration: none;
+  transition: transform .18s var(--ease), box-shadow .18s var(--ease), background .18s var(--ease);
+  box-shadow: 0 8px 26px -10px rgba(201, 162, 39, .7);
+}
+.btn-comecar:hover { background: #DCB43A; transform: translateY(-2px); box-shadow: 0 14px 32px -10px rgba(201, 162, 39, .8); }
+.btn-comecar:active { transform: translateY(0); }
+.btn-comecar .seta { transition: transform .18s var(--ease); }
+.btn-comecar:hover .seta { transform: translateX(4px); }
+
+.meta-heroi { display: flex; gap: 20px; flex-wrap: wrap; font-size: 13px; color: #A8C9BC; }
+.meta-heroi span { display: flex; align-items: center; gap: 7px; }
+.meta-heroi .ponto { width: 5px; height: 5px; border-radius: 50%; background: #C9A227; flex: none; }
+
+/* ============ Corpo ============ */
+.secao {
+  max-width: 1180px; margin: 0 auto; width: 100%;
+  padding: clamp(56px, 7vw, 88px) clamp(20px, 4vw, 56px);
+}
+.secao-cabeca { max-width: 62ch; margin-bottom: clamp(28px, 4vw, 44px); }
+.secao-cabeca h2 {
+  font-family: var(--display); font-size: clamp(26px, 3.2vw, 34px);
+  font-weight: 500; letter-spacing: -.018em; line-height: 1.15; margin: 0 0 12px;
+}
+.secao-cabeca p { margin: 0; font-size: 15px; line-height: 1.7; color: var(--ink-2); }
+
+/* ---- temas do questionário ---- */
+.temas { display: grid; gap: 16px; grid-template-columns: repeat(auto-fit, minmax(268px, 1fr)); }
+
+.tema {
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: var(--radius);
+  padding: 24px 24px 26px;
+  box-shadow: var(--shadow);
+  position: relative;
+  transition: box-shadow .2s var(--ease), border-color .2s var(--ease), transform .2s var(--ease);
+}
+.tema:hover { box-shadow: var(--shadow-lg); border-color: var(--brand); transform: translateY(-3px); }
+
+.tema-num {
+  font-family: var(--display); font-size: 13px; font-weight: 600;
+  color: var(--brand); letter-spacing: .1em; margin-bottom: 14px; display: block;
+}
+.tema h3 { margin: 0 0 9px; font-size: 17px; font-weight: 600; letter-spacing: -.012em; }
+.tema p { margin: 0; font-size: 13.5px; line-height: 1.62; color: var(--ink-2); }
+.tema .qtd {
+  position: absolute; top: 22px; right: 24px;
+  font-size: 11px; font-weight: 600; color: var(--ink-muted);
+  font-variant-numeric: tabular-nums;
+}
+
+/* ---- faixa de confidencialidade ---- */
+.confianca {
+  background: var(--brand-soft);
+  border-top: 1px solid var(--line);
+  border-bottom: 1px solid var(--line);
+}
+.confianca .secao { padding-top: clamp(44px, 5vw, 64px); padding-bottom: clamp(44px, 5vw, 64px); }
+.confianca-grade { display: grid; gap: 28px; grid-template-columns: repeat(auto-fit, minmax(250px, 1fr)); }
+.confianca-item h3 {
+  margin: 0 0 8px; font-size: 15px; font-weight: 600;
+  display: flex; align-items: center; gap: 9px;
+}
+.confianca-item .marca-ok {
+  width: 20px; height: 20px; border-radius: 50%; flex: none;
+  background: var(--brand); color: #fff;
+  display: grid; place-items: center; font-size: 11px;
+}
+.confianca-item p { margin: 0; font-size: 13.5px; line-height: 1.65; color: var(--ink-2); }
+
+/* ---- chamada final ---- */
+.fechamento { text-align: center; }
+.fechamento h2 { margin-bottom: 10px; }
+.fechamento p { margin: 0 auto 30px; max-width: 54ch; }
+.fechamento .btn-comecar { font-size: 16px; }
+
+/* ---- rodapé ---- */
+.rodape {
+  margin-top: auto;
+  border-top: 1px solid var(--line);
+  background: var(--surface-2);
+}
+.rodape-inner {
+  max-width: 1180px; margin: 0 auto;
+  padding: 26px clamp(20px, 4vw, 56px);
+  display: flex; gap: 18px; align-items: center; flex-wrap: wrap;
+  font-size: 12.5px; color: var(--ink-2);
+}
+.rodape-inner a { color: var(--ink-2); }
+.rodape-inner a:hover { color: var(--ink); }
+.rodape-inner .fim { margin-left: auto; }
+
+/* ---- entrada ---- */
+@keyframes sobe {
+  from { opacity: 0; transform: translateY(16px); }
+  to   { opacity: 1; transform: none; }
+}
+.anima { animation: sobe .62s var(--ease) both; }
+.d1 { animation-delay: 60ms; }
+.d2 { animation-delay: 130ms; }
+.d3 { animation-delay: 200ms; }
+.d4 { animation-delay: 270ms; }
+
+@media (max-width: 620px) {
+  .heroi-conteudo { min-height: auto; }
+  .heroi-texto { padding-top: 52px; }
+  .marca-topo .fim a { padding: 7px 11px; }
+}

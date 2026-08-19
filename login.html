@@ -1,0 +1,216 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Entrar · Pesquisa de Desligamento</title>
+<script>
+  (function () {
+    try {
+      const t = localStorage.getItem('pd:tema');
+      if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/auth.css">
+</head>
+<body class="auth">
+
+<main class="auth-caixa" id="caixa">
+  <p class="auth-carregando">Carregando…</p>
+</main>
+
+<script src="assets/config.js"></script>
+<script>
+(function () {
+  const caixa = document.getElementById('caixa');
+  const params = new URLSearchParams(location.search);
+  const de = params.get('de') || '';
+
+  /* A senha digitada no login fica só nesta variável, em memória, para
+     não obrigar a redigitá-la na tela de troca. Nunca vai para storage. */
+  let senhaAtual = '';
+
+  const esc = (s) => String(s == null ? '' : s)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;');
+
+  const marca = () => `
+    <div class="auth-marca">
+      <span class="selo" aria-hidden="true">${esc((window.APP.EMPRESA || '?').trim()[0].toUpperCase())}</span>
+      <span class="txt">${esc(window.APP.EMPRESA)}<small>Pesquisa de Desligamento</small></span>
+    </div>`;
+
+  function erro(msg) {
+    const alvo = document.getElementById('erro');
+    if (!alvo) return;
+    alvo.innerHTML = msg
+      ? `<div class="auth-erro"><span aria-hidden="true">⚠</span><span>${esc(msg)}</span></div>`
+      : '';
+  }
+
+  async function pedir(rota, corpo) {
+    const res = await fetch(rota, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(corpo),
+    });
+    let dados = {};
+    try { dados = await res.json(); } catch {}
+    return { ok: res.ok, status: res.status, dados };
+  }
+
+  /* ---------------- tela de login ---------------- */
+
+  function telaLogin() {
+    caixa.innerHTML = `
+      ${marca()}
+      <h1>Área de gestão</h1>
+      <p class="intro">Os resultados da pesquisa são confidenciais. Entre com sua conta corporativa.</p>
+      <div id="erro"></div>
+      <form id="f" autocomplete="on">
+        <div class="campo">
+          <label for="email">E-mail</label>
+          <input type="email" id="email" name="email" autocomplete="username"
+                 inputmode="email" required autofocus placeholder="nome@azime.com.br">
+        </div>
+        <div class="campo">
+          <label for="senha">Senha</label>
+          <input type="password" id="senha" name="senha" autocomplete="current-password" required>
+        </div>
+        <button class="btn-entrar" type="submit" id="btn">Entrar</button>
+      </form>
+      <p class="auth-pe">
+        Perdeu a senha? Peça ao TI para redefinir.<br>
+        <a href="index.html">← Voltar para o início</a>
+      </p>`;
+
+    document.getElementById('f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      erro('');
+      const btn = document.getElementById('btn');
+      const email = document.getElementById('email').value.trim();
+      const senha = document.getElementById('senha').value;
+      btn.disabled = true;
+      btn.textContent = 'Entrando…';
+
+      const { ok, dados } = await pedir('/api/login', { email, senha })
+        .catch(() => ({ ok: false, dados: { erro: 'Falha de rede. Tente de novo.' } }));
+
+      if (!ok) {
+        btn.disabled = false;
+        btn.textContent = 'Entrar';
+        erro(dados.erro || 'Não foi possível entrar.');
+        document.getElementById('senha').value = '';
+        document.getElementById('senha').focus();
+        return;
+      }
+
+      if (dados.usuario && dados.usuario.provisoria) {
+        senhaAtual = senha;
+        telaTroca(dados.usuario);
+        return;
+      }
+      location.href = destinoValido(de) || dados.destino || '/dashboard.html';
+    });
+  }
+
+  /* Só aceita caminho interno: um `?de=` apontando para fora seria
+     um redirecionamento aberto de presente para phishing. */
+  function destinoValido(valor) {
+    if (!valor || !valor.startsWith('/') || valor.startsWith('//')) return null;
+    return valor;
+  }
+
+  /* ---------------- troca obrigatória da senha ---------------- */
+
+  function telaTroca(usuario) {
+    const temAtual = !!senhaAtual;
+    caixa.innerHTML = `
+      ${marca()}
+      <h1>Defina sua senha</h1>
+      <p class="intro">
+        A senha de <strong>${esc(usuario.email)}</strong> é provisória. Escolha uma nova
+        para continuar — ela vale só para você.
+      </p>
+      <div class="auth-aviso">
+        <span aria-hidden="true">◆</span>
+        <span>Mínimo de 8 caracteres, misturando <strong>letras e números</strong>.</span>
+      </div>
+      <div id="erro"></div>
+      <form id="f" autocomplete="on">
+        ${temAtual ? '' : `
+        <div class="campo">
+          <label for="atual">Senha atual</label>
+          <input type="password" id="atual" autocomplete="current-password" required>
+        </div>`}
+        <div class="campo">
+          <label for="nova">Nova senha</label>
+          <input type="password" id="nova" autocomplete="new-password" required minlength="8" autofocus>
+        </div>
+        <div class="campo">
+          <label for="repete">Repita a nova senha</label>
+          <input type="password" id="repete" autocomplete="new-password" required minlength="8">
+        </div>
+        <button class="btn-entrar" type="submit" id="btn">Salvar e entrar</button>
+      </form>
+      <p class="auth-pe"><a href="#" id="sair">Sair sem trocar</a></p>`;
+
+    document.getElementById('sair').addEventListener('click', async (e) => {
+      e.preventDefault();
+      await fetch('/api/logout', { method: 'POST' }).catch(() => {});
+      senhaAtual = '';
+      location.href = '/login.html';
+    });
+
+    document.getElementById('f').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      erro('');
+      const nova = document.getElementById('nova').value;
+      const repete = document.getElementById('repete').value;
+      const atual = temAtual ? senhaAtual : document.getElementById('atual').value;
+
+      if (nova !== repete) { erro('As duas senhas não são iguais.'); return; }
+
+      const btn = document.getElementById('btn');
+      btn.disabled = true;
+      btn.textContent = 'Salvando…';
+
+      const { ok, dados } = await pedir('/api/senha', { atual, nova })
+        .catch(() => ({ ok: false, dados: { erro: 'Falha de rede. Tente de novo.' } }));
+
+      if (!ok) {
+        btn.disabled = false;
+        btn.textContent = 'Salvar e entrar';
+        erro(dados.erro || 'Não foi possível trocar a senha.');
+        return;
+      }
+      senhaAtual = '';
+      location.href = destinoValido(de) || dados.destino || '/dashboard.html';
+    });
+  }
+
+  /* ---------------- entrada ---------------- */
+
+  (async function inicio() {
+    let eu = null;
+    try {
+      const res = await fetch('/api/eu', { headers: { accept: 'application/json' } });
+      if (res.ok) eu = await res.json();
+    } catch {}
+
+    if (eu && eu.usuario.provisoria) return telaTroca(eu.usuario);
+    // `inicio` vem do servidor e respeita o papel: RH cai no dashboard,
+    // TI cai na tela de usuários (não tem acesso às respostas).
+    if (eu) { location.href = destinoValido(de) || eu.inicio || '/dashboard.html'; return; }
+    telaLogin();
+  })();
+})();
+</script>
+</body>
+</html>

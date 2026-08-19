@@ -1,0 +1,369 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Detalhe por setor · Pesquisa de Desligamento</title>
+<script>
+  (function () {
+    try {
+      const t = localStorage.getItem('pd:tema');
+      if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/admin.css">
+</head>
+<body class="admin">
+
+<div id="casca"></div>
+
+<main class="pagina">
+  <div id="faixa"></div>
+  <h1 class="titulo-pagina">Detalhe por setor</h1>
+  <p class="subtitulo-pagina">
+    Escolha um setor para ver como ele se compara com a média da empresa, dimensão por
+    dimensão, e ler na íntegra o que as pessoas daquele time escreveram.
+  </p>
+  <div id="conteudo"></div>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/stats.js"></script>
+<script src="assets/charts.js"></script>
+<script src="assets/xlsx.js"></script>
+<script src="assets/demo.js"></script>
+<script src="assets/admin.js"></script>
+<script>
+(function () {
+  const S = window.Stats, C = window.Charts, A = window.Admin;
+  const DIMS = window.APP.DIMENSOES;
+
+  let setorAtivo = new URLSearchParams(location.search).get('setor') || '';
+
+  A.iniciar('setores.html', (todos, recarregar) => {
+    const conteudo = document.getElementById('conteudo');
+
+    if (!todos.length) {
+      conteudo.innerHTML = '<div class="grade"></div>';
+      A.vazioGeral(conteudo.querySelector('.grade'), recarregar);
+      return;
+    }
+
+    const setores = S.setores(todos);
+    const mediaEmpresa = S.mediaGeral(todos);
+    const dimsEmpresa = S.dimensoes(todos);
+    const npsEmpresa = S.nps(todos);
+    const desafiosEmpresa = S.desafios(todos);
+
+    if (!setores.some((s) => s.setor === setorAtivo)) setorAtivo = setores[0].setor;
+
+    conteudo.innerHTML = `<div class="chips" id="chips" role="group" aria-label="Setores"></div>
+                          <div class="grade" id="grade"></div>`;
+
+    const chips = document.getElementById('chips');
+    chips.innerHTML = setores.map((s) =>
+      `<button class="chip" type="button" data-setor="${C.esc(s.setor)}"
+               aria-pressed="${s.setor === setorAtivo}">
+         ${C.esc(s.setor)}<span class="qtd">${s.n}</span></button>`).join('');
+
+    chips.addEventListener('click', (e) => {
+      const b = e.target.closest('.chip');
+      if (!b) return;
+      setorAtivo = b.dataset.setor;
+      chips.querySelectorAll('.chip').forEach((o) =>
+        o.setAttribute('aria-pressed', String(o.dataset.setor === setorAtivo)));
+      history.replaceState(null, '', '?setor=' + encodeURIComponent(setorAtivo));
+      pintar();
+    });
+
+    pintar();
+
+    /* ================= render ================= */
+    function pintar() {
+      const grade = document.getElementById('grade');
+      grade.classList.add('recarregando');
+      grade.innerHTML = '';
+
+      const setor = setores.find((s) => s.setor === setorAtivo);
+      const regs = setor.registros;
+      const dims = S.dimensoes(regs);
+      const nps = setor.nps;
+      const faixa = S.faixaNps(nps.score);
+      const deltaMedia = (setor.media != null && mediaEmpresa != null) ? setor.media - mediaEmpresa : null;
+      const deltaNps = (nps.score != null && npsEmpresa.score != null) ? nps.score - npsEmpresa.score : null;
+
+      const comMedia = dims.filter((d) => d.media != null).sort((a, b) => a.media - b.media);
+      const pior = comMedia[0];
+      const melhor = comMedia[comMedia.length - 1];
+
+      /* ---------- HERÓI: eNPS do setor ---------- */
+      const heroi = document.createElement('section');
+      heroi.className = 'heroi';
+      heroi.innerHTML = `
+        <div class="heroi-rot">eNPS — ${C.esc(setor.setor)}</div>
+        <div class="heroi-num">${S.fmtNps(nps.score)}</div>
+        <div class="heroi-faixa st st-${faixa.status}">
+          <span class="st-ponto"></span><span>${faixa.rotulo}</span>
+        </div>
+        ${C.barraNps(nps)}
+        ${C.legenda([
+          { cor: 'var(--div-neg)', label: 'Detratores' },
+          { cor: 'var(--div-mid)', label: 'Neutros' },
+          { cor: 'var(--div-pos)', label: 'Promotores' },
+        ])}
+        <p class="heroi-nota">
+          ${deltaNps == null
+            ? 'Sem base para comparar com a empresa.'
+            : `${S.fmtSigned(deltaNps, 0)} pontos em relação ao eNPS da empresa
+               (${S.fmtNps(npsEmpresa.score)}).`}
+          Base: ${S.fmtInt(nps.n)} de ${S.fmtInt(regs.length)} respostas do setor deram nota.
+        </p>`;
+      grade.appendChild(heroi);
+      A.contaAte(heroi.querySelector(".heroi-num"), nps.score, S.fmtNps);
+
+      /* ---------- CARTÕES DE NÚMERO ---------- */
+      const tiles = document.createElement('div');
+      tiles.className = 'tiles';
+      const participacao = (regs.length / todos.length) * 100;
+      const serie = S.linhaDoTempo(regs).slice(-12).map((p) => p.n);
+
+      tiles.appendChild(A.tile({
+        rot: 'Respostas deste setor', valor: S.fmtInt(regs.length),
+        spark: serie.length > 1 ? serie : null,
+        nota: `${S.fmtPct(participacao, 1)} de todos os desligamentos registrados`,
+      }));
+      tiles.appendChild(A.tile({
+        rot: 'Média geral do setor', valor: S.fmt2(setor.media), sufixo: ' / 5',
+        nota: deltaMedia == null ? '' : `${S.fmtSigned(deltaMedia)} vs. empresa (${S.fmt2(mediaEmpresa)})`,
+      }));
+      tiles.appendChild(A.tile({
+        rot: 'Dimensão mais frágil',
+        valor: pior ? S.fmt2(pior.media) : '—',
+        nota: pior ? C.esc(pior.curto) : 'sem notas registradas',
+      }));
+      tiles.appendChild(A.tile({
+        rot: 'Dimensão mais forte',
+        valor: melhor ? S.fmt2(melhor.media) : '—',
+        nota: melhor ? C.esc(melhor.curto) : 'sem notas registradas',
+      }));
+      grade.appendChild(tiles);
+
+      /* ---------- aviso de base pequena ---------- */
+      if (regs.length < 5) {
+        const aviso = document.createElement('div');
+        aviso.className = 'cartao c12';
+        aviso.innerHTML = `<div class="faixa-modo" style="margin:0">
+          <span aria-hidden="true">◆</span>
+          <span><strong>Base pequena.</strong> ${regs.length} resposta${regs.length === 1 ? '' : 's'} neste setor.
+          Médias e percentuais oscilam muito com tão poucos casos — vale ler os comentários
+          na íntegra em vez de tirar conclusão dos números.</span></div>`;
+        grade.appendChild(aviso);
+      }
+
+      /* ---------- O QUE DIFERE ESTE SETOR (divergente) ---------- */
+      const deltas = DIMS.map((d) => {
+        const doSetor = dims.find((x) => x.id === d.id);
+        const daEmpresa = dimsEmpresa.find((x) => x.id === d.id);
+        const v = (doSetor.media != null && daEmpresa.media != null) ? doSetor.media - daEmpresa.media : null;
+        return { dim: d, doSetor, daEmpresa, delta: v };
+      }).filter((x) => x.delta != null).sort((a, b) => a.delta - b.delta);
+
+      A.cartao({
+        pai: grade, span: 'c12',
+        titulo: 'O que diferencia este setor',
+        sub: 'Diferença entre a média do setor e a média da empresa, em pontos da escala 1–5.',
+        antes: C.legenda([
+          { cor: 'var(--div-neg)', label: 'Abaixo da empresa' },
+          { cor: 'var(--div-pos)', label: 'Acima da empresa' },
+        ]),
+        rolarX: true,
+        desenhar: (el) => C.barsDiv(el, {
+          aria: 'Diferença de cada dimensão entre o setor e a média da empresa',
+          formato: (v) => S.fmtSigned(v),
+          rows: deltas.map((x) => ({
+            label: x.dim.curto, value: x.delta,
+            tip: `<strong>${C.esc(x.dim.curto)}</strong><br>`
+               + `Setor: ${S.fmt2(x.doSetor.media)} (${x.doSetor.n} respostas)<br>`
+               + `Empresa: ${S.fmt2(x.daEmpresa.media)}<br>`
+               + `Diferença: ${S.fmtSigned(x.delta)}`,
+          })),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Dimensão' }, { titulo: 'Setor', num: true }, { titulo: 'Empresa', num: true },
+                 { titulo: 'Diferença', num: true }, { titulo: 'Respostas', num: true }],
+          rows: deltas.map((x) => [x.dim.curto, S.fmt2(x.doSetor.media), S.fmt2(x.daEmpresa.media),
+            S.fmtSigned(x.delta), x.doSetor.n]),
+        },
+      });
+
+      /* ---------- NOTAS DO SETOR ---------- */
+      A.cartao({
+        pai: grade, span: 'c6',
+        titulo: 'Notas do setor, dimensão por dimensão',
+        sub: 'Escala 1–5, da pior para a melhor.',
+        antes: `<div class="nota-ref"><span class="fio"></span>
+                 <span>linha de referência: média da empresa ${S.fmt2(mediaEmpresa)}</span></div>`,
+        desenhar: (el) => C.barsH(el, {
+          aria: 'Média de cada dimensão neste setor',
+          escalaMax: 5,
+          ref: { value: mediaEmpresa },
+          formato: (v) => S.fmt2(v),
+          rows: comMedia.map((d) => ({
+            label: d.curto, value: d.media,
+            tip: `<strong>${C.esc(d.curto)}</strong><br>Média ${S.fmt2(d.media)} · ${d.n} respostas<br>`
+               + `<span class="tip-meta">1:${d.dist[1]} · 2:${d.dist[2]} · 3:${d.dist[3]} · 4:${d.dist[4]} · 5:${d.dist[5]}</span>`,
+          })),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Dimensão' }, { titulo: 'Média', num: true }, { titulo: 'Respostas', num: true }],
+          rows: comMedia.map((d) => [d.curto, S.fmt2(d.media), d.n]),
+        },
+      });
+
+      /* ---------- DESAFIOS DO SETOR ---------- */
+      const desafiosSetor = S.desafios(regs).filter((d) => d.n > 0);
+      A.cartao({
+        pai: grade, span: 'c6',
+        titulo: 'Desafios citados neste setor',
+        sub: 'Percentual de quem marcou cada aspecto. O tooltip traz a comparação com a empresa.',
+        desenhar: (el) => C.barsH(el, {
+          aria: 'Desafios mais citados neste setor',
+          formato: (v) => S.fmtPct(v),
+          rows: desafiosSetor.map((d) => {
+            const geral = desafiosEmpresa.find((x) => x.label === d.label);
+            return {
+              label: d.label, value: d.pct,
+              tip: `<strong>${C.esc(d.label)}</strong><br>`
+                 + `Setor: ${d.n} de ${regs.length} (${S.fmtPct(d.pct)})<br>`
+                 + `Empresa: ${S.fmtPct(geral ? geral.pct : null)}<br>`
+                 + `Diferença: ${S.fmtSigned(geral ? d.pct - geral.pct : null, 0)} p.p.`,
+            };
+          }),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Desafio' }, { titulo: 'Citações', num: true }, { titulo: 'Setor', num: true },
+                 { titulo: 'Empresa', num: true }],
+          rows: desafiosSetor.map((d) => {
+            const geral = desafiosEmpresa.find((x) => x.label === d.label);
+            return [d.label, d.n, S.fmtPct(d.pct, 1), S.fmtPct(geral ? geral.pct : null, 1)];
+          }),
+        },
+      });
+
+      /* ---------- DISTRIBUIÇÃO DAS NOTAS NO SETOR ---------- */
+      A.cartao({
+        pai: grade, span: 'c12',
+        titulo: 'Distribuição das notas neste setor',
+        sub: 'Centrada no neutro: negativo à esquerda, positivo à direita.',
+        antes: C.legenda([
+          { cor: 'var(--div-neg)', label: 'Negativo (1–2)' },
+          { cor: 'var(--div-mid)', label: 'Neutro (3)' },
+          { cor: 'var(--div-pos)', label: 'Positivo (4–5)' },
+        ]),
+        rolarX: true,
+        desenhar: (el) => C.likert(el, {
+          aria: 'Distribuição das notas por dimensão neste setor',
+          rows: comMedia.map((d) => ({
+            label: d.curto, neg: d.pctNeg || 0, neu: d.pctNeu || 0, pos: d.pctPos || 0, n: d.n,
+          })),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Dimensão' }, { titulo: 'Negativo', num: true }, { titulo: 'Neutro', num: true },
+                 { titulo: 'Positivo', num: true }, { titulo: 'Respostas', num: true }],
+          rows: comMedia.map((d) => [d.curto, S.fmtPct(d.pctNeg, 1), S.fmtPct(d.pctNeu, 1),
+            S.fmtPct(d.pctPos, 1), d.n]),
+        },
+      });
+
+      /* ---------- COMENTÁRIOS DO SETOR ---------- */
+      const cartaoTexto = document.createElement('article');
+      cartaoTexto.className = 'cartao c12';
+      cartaoTexto.innerHTML = `
+        <div class="cartao-cabeca">
+          <div>
+            <h2>Nas palavras de quem saiu</h2>
+            <p>Respostas abertas deste setor, das mais recentes para as mais antigas.</p>
+          </div>
+          <div class="direita">
+            <label class="filtro"><span>Pergunta</span>
+              <select id="sel-pergunta">
+                <option value="">Todas as perguntas</option>
+                ${window.APP.ABERTAS.map((a) => `<option value="${a.id}">${C.esc(a.titulo)}</option>`).join('')}
+              </select></label>
+          </div>
+        </div>
+        <div class="verbatims" id="verbatims"></div>`;
+      grade.appendChild(cartaoTexto);
+
+      const selP = cartaoTexto.querySelector('#sel-pergunta');
+      const pintarVerbatims = () => {
+        const lista = S.verbatims(regs, selP.value ? [selP.value] : null);
+        const alvo = cartaoTexto.querySelector('#verbatims');
+        alvo.innerHTML = lista.length
+          ? lista.map((v) => `<blockquote class="verbatim">
+              <p>${C.esc(v.texto)}</p>
+              <footer>
+                <span>${C.esc(v.pergunta)}</span>
+                <span>${C.esc(v.cargo || 'cargo não informado')}</span>
+                <span>${S.fmtData(v.timestamp)}</span>
+                ${v.nps == null ? '' : `<span>nota ${v.nps}</span>`}
+              </footer></blockquote>`).join('')
+          : '<p class="vazio-inline">Ninguém escreveu nada nesta pergunta, neste setor.</p>';
+      };
+      selP.addEventListener('change', pintarVerbatims);
+      pintarVerbatims();
+
+      /* ---------- COMPARATIVO ENTRE SETORES ---------- */
+      const comparativo = document.createElement('article');
+      comparativo.className = 'cartao c12';
+      const linhas = setores.map((s) => {
+        const ds = S.dimensoes(s.registros).filter((d) => d.media != null).sort((a, b) => a.media - b.media);
+        return {
+          setor: s.setor, n: s.n, media: s.media,
+          delta: (s.media != null && mediaEmpresa != null) ? s.media - mediaEmpresa : null,
+          nps: s.nps.score,
+          fragil: ds.length ? ds[0].curto : '—',
+        };
+      }).sort((a, b) => (a.media ?? 9) - (b.media ?? 9));
+
+      comparativo.innerHTML = `
+        <div class="cartao-cabeca">
+          <div>
+            <h2>Comparativo entre setores</h2>
+            <p>Ordenado da média mais baixa para a mais alta. O setor aberto está destacado.</p>
+          </div>
+        </div>
+        <div class="tabela-wrap">
+          <table class="tabela-viz">
+            <thead><tr>
+              <th scope="col">Setor</th><th scope="col" class="num">Respostas</th>
+              <th scope="col" class="num">Média</th><th scope="col" class="num">Δ empresa</th>
+              <th scope="col" class="num">eNPS</th><th scope="col">Dimensão mais frágil</th>
+            </tr></thead>
+            <tbody>${linhas.map((l) => `<tr${l.setor === setorAtivo ? ' style="background:var(--brand-soft)"' : ''}>
+              <th scope="row"><a href="?setor=${encodeURIComponent(l.setor)}"
+                  style="color:inherit">${C.esc(l.setor)}</a></th>
+              <td class="num">${l.n}</td>
+              <td class="num">${S.fmt2(l.media)}</td>
+              <td class="num">${S.fmtSigned(l.delta)}</td>
+              <td class="num">${S.fmtNps(l.nps)}</td>
+              <td>${C.esc(l.fragil)}</td>
+            </tr>`).join('')}</tbody>
+          </table>
+        </div>`;
+      grade.appendChild(comparativo);
+
+      grade.classList.remove('recarregando');
+    }
+  });
+})();
+</script>
+</body>
+</html>

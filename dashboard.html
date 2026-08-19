@@ -1,0 +1,339 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Dashboard · Pesquisa de Desligamento</title>
+<script>
+  /* Aplica o tema antes da primeira pintura, para não piscar branco. */
+  (function () {
+    try {
+      const t = localStorage.getItem('pd:tema');
+      if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/admin.css">
+</head>
+<body class="admin">
+
+<div id="casca"></div>
+
+<main class="pagina">
+  <div id="faixa"></div>
+  <h1 class="titulo-pagina">Panorama do desligamento</h1>
+  <p class="subtitulo-pagina">
+    O que as pessoas que saíram estão dizendo, em números. Os filtros abaixo valem para
+    todos os gráficos desta tela. Todo gráfico tem versão em tabela.
+  </p>
+  <div id="conteudo"></div>
+</main>
+
+<script src="assets/config.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/stats.js"></script>
+<script src="assets/charts.js"></script>
+<script src="assets/xlsx.js"></script>
+<script src="assets/demo.js"></script>
+<script src="assets/admin.js"></script>
+<script>
+(function () {
+  const S = window.Stats, C = window.Charts, A = window.Admin;
+  const DIMS = window.APP.DIMENSOES;
+
+  const filtro = { setor: '', dias: 0 };
+
+  A.iniciar('dashboard.html', (todos, recarregar) => {
+    const conteudo = document.getElementById('conteudo');
+
+    if (!todos.length) {
+      conteudo.innerHTML = '<div class="grade"></div>';
+      A.vazioGeral(conteudo.querySelector('.grade'), recarregar);
+      return;
+    }
+
+    conteudo.innerHTML = `
+      <div class="filtros">
+        <label class="filtro"><span>Setor</span>
+          <select id="f-setor"></select></label>
+        <label class="filtro"><span>Período</span>
+          <select id="f-dias">
+            <option value="0">Todo o histórico</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="180">Últimos 6 meses</option>
+            <option value="365">Últimos 12 meses</option>
+          </select></label>
+        <div class="direita">
+          <span class="filtros-resumo" id="resumo"></span>
+          <button class="btn-acao" id="btn-limpar" type="button">Limpar filtros</button>
+        </div>
+      </div>
+      <div class="grade" id="grade"></div>`;
+
+    /* --- opções de setor, ordenadas por volume --- */
+    const setoresTodos = S.setores(todos);
+    const sel = document.getElementById('f-setor');
+    sel.innerHTML = '<option value="">Todos os setores</option>'
+      + setoresTodos.map((s) => `<option value="${C.esc(s.setor)}">${C.esc(s.setor)} (${s.n})</option>`).join('');
+
+    sel.addEventListener('change', () => { filtro.setor = sel.value; pintar(); });
+    document.getElementById('f-dias').addEventListener('change', (e) => {
+      filtro.dias = Number(e.target.value); pintar();
+    });
+    document.getElementById('btn-limpar').addEventListener('click', () => {
+      filtro.setor = ''; filtro.dias = 0;
+      sel.value = ''; document.getElementById('f-dias').value = '0';
+      pintar();
+    });
+
+    pintar();
+
+    /* ================= render dos gráficos ================= */
+    function pintar() {
+      const grade = document.getElementById('grade');
+      const regs = S.filtrar(todos, filtro);
+
+      document.getElementById('resumo').textContent =
+        regs.length === todos.length
+          ? `${S.fmtInt(todos.length)} respostas`
+          : `${S.fmtInt(regs.length)} de ${S.fmtInt(todos.length)} respostas`;
+
+      grade.classList.add('recarregando');
+      grade.innerHTML = '';
+
+      if (!regs.length) {
+        grade.innerHTML = `<div class="vazio-geral"><h2>Nada neste corte</h2>
+          <p>Nenhuma resposta combina com o filtro atual. Amplie o período ou volte para todos os setores.</p></div>`;
+        grade.classList.remove('recarregando');
+        return;
+      }
+
+      const nps = S.nps(regs);
+      const faixa = S.faixaNps(nps.score);
+      const mediaGeral = S.mediaGeral(regs);
+      const dims = S.dimensoes(regs);
+      const dimsOrd = dims.slice().sort((a, b) => (a.media ?? 9) - (b.media ?? 9));
+      const setores = S.setores(regs);
+      const tempo = S.linhaDoTempo(regs);
+      const desafios = S.desafios(regs).filter((d) => d.n > 0);
+
+      /* ---------- HERÓI: o NPS abre o painel ---------- */
+      const heroi = document.createElement('section');
+      heroi.className = 'heroi';
+      heroi.innerHTML = `
+        <div class="heroi-rot">eNPS — recomendaria a empresa</div>
+        <div class="heroi-num">${S.fmtNps(nps.score)}</div>
+        <div class="heroi-faixa st st-${faixa.status}">
+          <span class="st-ponto"></span><span>${faixa.rotulo}</span>
+        </div>
+        ${C.barraNps(nps)}
+        ${C.legenda([
+          { cor: 'var(--div-neg)', label: 'Detratores (0–6)' },
+          { cor: 'var(--div-mid)', label: 'Neutros (7–8)' },
+          { cor: 'var(--div-pos)', label: 'Promotores (9–10)' },
+        ])}
+        <div class="nps-tres">
+          <div><strong>${S.fmtInt(nps.detratores)}</strong>detratores</div>
+          <div><strong>${S.fmtInt(nps.neutros)}</strong>neutros</div>
+          <div><strong>${S.fmtInt(nps.promotores)}</strong>promotores</div>
+        </div>
+        <p class="heroi-nota">
+          Promotores menos detratores, em pontos percentuais. Vai de −100 a +100 —
+          nota média ${S.fmt1(nps.media)} sobre ${S.fmtInt(nps.n)} respostas com nota.
+        </p>`;
+      grade.appendChild(heroi);
+      A.contaAte(heroi.querySelector(".heroi-num"), nps.score, S.fmtNps);
+
+      /* ---------- CARTÕES DE NÚMERO ---------- */
+      const tiles = document.createElement('div');
+      tiles.className = 'tiles';
+      const serieMeses = tempo.slice(-12).map((p) => p.n);
+      const preench = S.completudeMedia(regs);
+
+      tiles.appendChild(A.tile({
+        rot: 'Respostas recebidas', valor: S.fmtInt(regs.length),
+        spark: serieMeses.length > 1 ? serieMeses : null,
+        nota: tempo.length ? `último registro em ${S.fmtData(regs[0].timestamp)}` : '',
+      }));
+      tiles.appendChild(A.tile({
+        rot: 'Média geral da avaliação', valor: S.fmt2(mediaGeral), sufixo: ' / 5',
+        nota: `${DIMS.length} dimensões, escala 1–5`,
+      }));
+      tiles.appendChild(A.tile({
+        rot: 'Setores com resposta', valor: S.fmtInt(setores.length),
+        nota: setores.length ? `maior volume: ${C.esc(setores[0].setor)} (${setores[0].n})` : '',
+      }));
+      tiles.appendChild(A.tile({
+        rot: 'Preenchimento médio do formulário',
+        valor: S.fmtPct(preench == null ? null : preench * 100), medidor: preench == null ? 0 : preench * 100,
+        nota: 'quase todos os campos são opcionais',
+      }));
+      grade.appendChild(tiles);
+
+      /* ---------- RANKING DAS DIMENSÕES ---------- */
+      A.cartao({
+        pai: grade, span: 'c7',
+        titulo: 'Onde a experiência dói mais',
+        sub: 'Média de cada dimensão na escala 1–5, da pior para a melhor.',
+        antes: `<div class="nota-ref"><span class="fio"></span>
+                 <span>linha de referência: média geral ${S.fmt2(mediaGeral)}</span></div>`,
+        desenhar: (el) => C.barsH(el, {
+          aria: 'Média de cada dimensão avaliada, da pior para a melhor',
+          escalaMax: 5,
+          ref: { value: mediaGeral },
+          formato: (v) => S.fmt2(v),
+          rows: dimsOrd.map((d) => ({
+            label: d.curto,
+            value: d.media,
+            tip: `<strong>${C.esc(d.curto)}</strong><br>${C.esc(d.longo)}<br>`
+               + `Média ${S.fmt2(d.media)} · ${d.n} respostas<br>`
+               + `<span class="tip-meta">1:${d.dist[1]} · 2:${d.dist[2]} · 3:${d.dist[3]} · 4:${d.dist[4]} · 5:${d.dist[5]}</span>`,
+          })),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Dimensão' }, { titulo: 'Média', num: true }, { titulo: 'Respostas', num: true },
+                 { titulo: '1', num: true }, { titulo: '2', num: true }, { titulo: '3', num: true },
+                 { titulo: '4', num: true }, { titulo: '5', num: true }],
+          rows: dimsOrd.map((d) => [d.curto, S.fmt2(d.media), d.n,
+            d.dist[1], d.dist[2], d.dist[3], d.dist[4], d.dist[5]]),
+        },
+      });
+
+      /* ---------- DESAFIOS MAIS CITADOS ---------- */
+      A.cartao({
+        pai: grade, span: 'c5',
+        titulo: 'Maiores desafios do dia a dia',
+        sub: 'Múltipla escolha — o total passa de 100%.',
+        desenhar: (el) => C.barsH(el, {
+          aria: 'Aspectos mais citados como maiores desafios',
+          formato: (v) => S.fmtPct(v),
+          rows: desafios.map((d) => ({
+            label: d.label, value: d.pct,
+            tip: `<strong>${C.esc(d.label)}</strong><br>${d.n} de ${regs.length} respostas (${S.fmtPct(d.pct)})`,
+          })),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Desafio' }, { titulo: 'Citações', num: true }, { titulo: '% das respostas', num: true }],
+          rows: desafios.map((d) => [d.label, d.n, S.fmtPct(d.pct, 1)]),
+        },
+      });
+
+      /* ---------- PERCEPÇÃO POR DIMENSÃO (Likert divergente) ---------- */
+      A.cartao({
+        pai: grade, span: 'c12',
+        titulo: 'Como as notas se distribuem',
+        sub: 'Cada barra é uma dimensão, centrada no neutro: negativo à esquerda, positivo à direita.',
+        antes: C.legenda([
+          { cor: 'var(--div-neg)', label: 'Negativo (notas 1–2)' },
+          { cor: 'var(--div-mid)', label: 'Neutro (nota 3)' },
+          { cor: 'var(--div-pos)', label: 'Positivo (notas 4–5)' },
+        ]),
+        rolarX: true,
+        desenhar: (el) => C.likert(el, {
+          aria: 'Distribuição das notas por dimensão, do negativo ao positivo',
+          rows: dimsOrd.map((d) => ({
+            label: d.curto, neg: d.pctNeg || 0, neu: d.pctNeu || 0, pos: d.pctPos || 0, n: d.n,
+          })),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Dimensão' }, { titulo: 'Negativo', num: true }, { titulo: 'Neutro', num: true },
+                 { titulo: 'Positivo', num: true }, { titulo: 'Respostas', num: true }],
+          rows: dimsOrd.map((d) => [d.curto, S.fmtPct(d.pctNeg, 1), S.fmtPct(d.pctNeu, 1),
+            S.fmtPct(d.pctPos, 1), d.n]),
+        },
+      });
+
+      /* ---------- MÉDIA POR SETOR (clicável) ---------- */
+      const setoresOrd = setores.slice().sort((a, b) => (a.media ?? 9) - (b.media ?? 9));
+      const cartaoSetor = A.cartao({
+        pai: grade, span: 'c7',
+        titulo: 'Média geral por setor',
+        sub: 'Clique numa barra para abrir o detalhe daquele setor.',
+        antes: `<div class="nota-ref"><span class="fio"></span>
+                 <span>linha de referência: média da empresa ${S.fmt2(mediaGeral)}</span></div>`,
+        desenhar: (el) => C.barsH(el, {
+          aria: 'Média geral da avaliação por setor',
+          escalaMax: 5,
+          ref: { value: mediaGeral },
+          formato: (v) => S.fmt2(v),
+          rows: setoresOrd.map((s) => ({
+            label: s.setor, value: s.media,
+            href: 'setores.html?setor=' + encodeURIComponent(s.setor),
+            tip: `<strong>${C.esc(s.setor)}</strong><br>Média ${S.fmt2(s.media)} · ${s.n} respostas<br>`
+               + `eNPS ${S.fmtNps(s.nps.score)}<br>`
+               + `<span class="tip-meta">clique para abrir o detalhe</span>`,
+          })),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Setor' }, { titulo: 'Respostas', num: true }, { titulo: 'Média', num: true },
+                 { titulo: 'eNPS', num: true }],
+          rows: setoresOrd.map((s) => [s.setor, s.n, S.fmt2(s.media),
+            S.fmtNps(s.nps.score)]),
+        },
+      });
+      A.barrasClicaveis(cartaoSetor);
+
+      /* ---------- VOLUME NO TEMPO ---------- */
+      A.cartao({
+        pai: grade, span: 'c5',
+        titulo: 'Respostas por mês',
+        sub: 'Volume de desligamentos que passaram pela pesquisa.',
+        desenhar: (el) => C.linha(el, {
+          aria: 'Número de respostas por mês',
+          formato: (v) => S.fmtInt(v),
+          altura: 300,   // acompanha a altura do cartão vizinho, sem sobra morta
+          points: tempo.map((p) => ({
+            label: p.label, labelLongo: p.labelLongo, value: p.n,
+            tip: `<strong>${C.esc(p.labelLongo)}</strong><br>${p.n} resposta${p.n === 1 ? '' : 's'}`
+               + (p.media != null ? `<br>média ${S.fmt2(p.media)}` : ''),
+          })),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Mês' }, { titulo: 'Respostas', num: true }, { titulo: 'Média geral', num: true }],
+          rows: tempo.map((p) => [p.labelLongo, p.n, S.fmt2(p.media)]),
+        },
+      });
+
+      /* ---------- MAPA DE CALOR SETOR × DIMENSÃO ---------- */
+      const topSetores = setores.slice(0, 12);
+      const celulas = topSetores.map((s) => DIMS.map((d) => s.dims[d.id]));
+      const planas = celulas.flat().filter((v) => v != null);
+      const dominio = planas.length
+        ? [Math.floor(Math.min(...planas) * 10) / 10, Math.ceil(Math.max(...planas) * 10) / 10]
+        : [1, 5];
+      if (dominio[0] === dominio[1]) dominio[1] = dominio[0] + 0.1;
+
+      A.cartao({
+        pai: grade, span: 'c12',
+        titulo: 'Mapa de calor: setor × dimensão',
+        sub: `Média 1–5 de cada cruzamento. Quanto mais escuro, melhor a percepção.`
+           + (setores.length > 12 ? ' Mostrando os 12 setores com mais respostas.' : ''),
+        antes: C.legendaEscala(dominio, 'Média 1–5'),
+        rolarX: true,
+        desenhar: (el) => C.heatmap(el, {
+          aria: 'Mapa de calor da média por setor e dimensão',
+          rows: topSetores.map((s) => ({ label: `${s.setor} (${s.n})` })),
+          cols: DIMS.map((d) => ({ label: d.curto })),
+          cells: celulas,
+          dominio,
+          formato: (v) => S.fmt1(v),
+        }),
+        tabela: {
+          cols: [{ titulo: 'Setor' }, ...DIMS.map((d) => ({ titulo: d.curto, num: true }))],
+          rows: topSetores.map((s) => [s.setor, ...DIMS.map((d) => S.fmt2(s.dims[d.id]))]),
+        },
+      });
+
+      grade.classList.remove('recarregando');
+    }
+  });
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,489 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Respostas · Pesquisa de Desligamento</title>
+<script>
+  (function () {
+    try {
+      const t = localStorage.getItem('pd:tema');
+      if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+    } catch (e) {}
+  })();
+</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/admin.css">
+</head>
+<body class="admin">
+
+<div id="casca"></div>
+
+<main class="pagina">
+  <div id="faixa"></div>
+  <h1 class="titulo-pagina">Todas as respostas</h1>
+  <p class="subtitulo-pagina">
+    Uma linha por pessoa. Clique em qualquer linha para ler a resposta completa.
+    A exportação leva exatamente o que está filtrado aqui.
+  </p>
+  <div id="conteudo"></div>
+</main>
+
+<div class="gaveta-fundo" id="gaveta-fundo"></div>
+<aside class="gaveta" id="gaveta" role="dialog" aria-modal="true" aria-labelledby="gaveta-titulo" hidden>
+  <div class="gaveta-cabeca">
+    <div>
+      <h2 id="gaveta-titulo"></h2>
+      <p id="gaveta-sub"></p>
+    </div>
+    <button class="icone-btn direita" id="gaveta-fechar" type="button" aria-label="Fechar detalhe">✕</button>
+  </div>
+  <div class="gaveta-corpo" id="gaveta-corpo"></div>
+</aside>
+
+<script src="assets/config.js"></script>
+<script src="assets/store.js"></script>
+<script src="assets/stats.js"></script>
+<script src="assets/charts.js"></script>
+<script src="assets/xlsx.js"></script>
+<script src="assets/demo.js"></script>
+<script src="assets/admin.js"></script>
+<script>
+(function () {
+  const S = window.Stats, C = window.Charts, A = window.Admin, X = window.Xlsx;
+  const DIMS = window.APP.DIMENSOES;
+
+  const POR_PAGINA = 50;
+  const filtro = { busca: '', setor: '', dias: 0, perfil: '' };
+  let ordem = { campo: 'timestamp', dir: -1 };
+  let pagina = 1;
+
+  /* ---------- colunas visíveis na tabela ---------- */
+  const COLUNAS = [
+    { id: 'timestamp',    titulo: 'Data',      tipo: 'data' },
+    { id: 'nome',         titulo: 'Nome' },
+    { id: 'cargo',        titulo: 'Cargo' },
+    { id: 'departamento', titulo: 'Setor' },
+    { id: 'media',        titulo: 'Média',     num: true },
+    { id: 'nps',          titulo: 'Recomendação', num: true },
+    { id: 'aspectos',     titulo: 'Desafios' },
+    { id: 'comentarios',  titulo: 'Comentário' },
+  ];
+
+  A.iniciar('respostas.html', (todos, recarregar) => {
+    const conteudo = document.getElementById('conteudo');
+
+    if (!todos.length) {
+      conteudo.innerHTML = '<div class="grade"></div>';
+      A.vazioGeral(conteudo.querySelector('.grade'), recarregar);
+      return;
+    }
+
+    const setores = S.setores(todos);
+
+    conteudo.innerHTML = `
+      <div class="filtros">
+        <label class="filtro"><span>Buscar</span>
+          <input type="search" id="f-busca" placeholder="nome, cargo, texto das respostas…"></label>
+        <label class="filtro"><span>Setor</span>
+          <select id="f-setor">
+            <option value="">Todos os setores</option>
+            ${setores.map((s) => `<option value="${C.esc(s.setor)}">${C.esc(s.setor)} (${s.n})</option>`).join('')}
+          </select></label>
+        <label class="filtro"><span>Período</span>
+          <select id="f-dias">
+            <option value="0">Todo o histórico</option>
+            <option value="30">Últimos 30 dias</option>
+            <option value="90">Últimos 90 dias</option>
+            <option value="180">Últimos 6 meses</option>
+            <option value="365">Últimos 12 meses</option>
+          </select></label>
+        <label class="filtro"><span>Perfil</span>
+          <select id="f-perfil">
+            <option value="">Todos os perfis</option>
+            <option value="promotor">Promotores (9–10)</option>
+            <option value="neutro">Neutros (7–8)</option>
+            <option value="detrator">Detratores (0–6)</option>
+          </select></label>
+        <div class="direita">
+          <span class="filtros-resumo" id="resumo"></span>
+          <button class="btn-acao" id="btn-limpar" type="button">Limpar</button>
+          <button class="btn-acao" id="btn-csv" type="button">CSV</button>
+          <button class="btn-acao forte" id="btn-xlsx" type="button">Exportar Excel</button>
+        </div>
+      </div>
+      <div class="tabela-shell">
+        <div class="tabela-scroll"><table class="tabela-dados" id="tabela">
+          <thead><tr id="cabecalho"></tr></thead>
+          <tbody id="corpo"></tbody>
+        </table></div>
+        <div class="paginacao" id="paginacao"></div>
+      </div>`;
+
+    /* ---------- eventos de filtro ---------- */
+    const $ = (id) => document.getElementById(id);
+    let debounce = null;
+    $('f-busca').addEventListener('input', (e) => {
+      clearTimeout(debounce);
+      debounce = setTimeout(() => { filtro.busca = e.target.value; pagina = 1; pintar(); }, 180);
+    });
+    $('f-setor').addEventListener('change', (e) => { filtro.setor = e.target.value; pagina = 1; pintar(); });
+    $('f-dias').addEventListener('change', (e) => { filtro.dias = Number(e.target.value); pagina = 1; pintar(); });
+    $('f-perfil').addEventListener('change', (e) => { filtro.perfil = e.target.value; pagina = 1; pintar(); });
+    $('btn-limpar').addEventListener('click', () => {
+      Object.assign(filtro, { busca: '', setor: '', dias: 0, perfil: '' });
+      $('f-busca').value = ''; $('f-setor').value = ''; $('f-dias').value = '0'; $('f-perfil').value = '';
+      pagina = 1; pintar();
+    });
+    $('btn-xlsx').addEventListener('click', () => exportar('xlsx'));
+    $('btn-csv').addEventListener('click', () => exportar('csv'));
+
+    /* ---------- cabeçalho ordenável ---------- */
+    function cabecalho() {
+      $('cabecalho').innerHTML = COLUNAS.map((c) => {
+        const ativa = ordem.campo === c.id;
+        const dir = ordem.dir === 1 ? 'ascending' : 'descending';
+        return `<th scope="col" class="${c.num ? 'num' : ''}" data-col="${c.id}"
+                 ${ativa ? `aria-sort="${dir}"` : ''} tabindex="0" role="button">
+                 ${C.esc(c.titulo)}<span class="ord">${ativa ? (ordem.dir === 1 ? '▲' : '▼') : '↕'}</span></th>`;
+      }).join('');
+      $('cabecalho').querySelectorAll('th').forEach((th) => {
+        const troca = () => {
+          const col = th.dataset.col;
+          if (ordem.campo === col) ordem.dir *= -1;
+          else ordem = { campo: col, dir: col === 'timestamp' ? -1 : 1 };
+          pintar();
+        };
+        th.addEventListener('click', troca);
+        th.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); troca(); }
+        });
+      });
+    }
+
+    /* ---------- ordenação ---------- */
+    function valorOrdem(r, campo) {
+      if (campo === 'media') return S.mediaRegistro(r);
+      if (campo === 'aspectos') return (r.aspectos || []).length;
+      if (campo === 'nps') return r.nps;
+      return r[campo];
+    }
+
+    function ordenar(lista) {
+      const { campo, dir } = ordem;
+      return lista.slice().sort((a, b) => {
+        const va = valorOrdem(a, campo), vb = valorOrdem(b, campo);
+        // Vazios sempre no fim, independente da direção.
+        const na = va == null || va === '', nb = vb == null || vb === '';
+        if (na && nb) return 0;
+        if (na) return 1;
+        if (nb) return -1;
+        if (typeof va === 'number' && typeof vb === 'number') return (va - vb) * dir;
+        return String(va).localeCompare(String(vb), 'pt-BR') * dir;
+      });
+    }
+
+    /* ---------- render ---------- */
+    let filtrados = [];
+
+    function pintar() {
+      cabecalho();
+      filtrados = ordenar(S.filtrar(todos, filtro));
+
+      $('resumo').textContent = filtrados.length === todos.length
+        ? `${S.fmtInt(todos.length)} respostas`
+        : `${S.fmtInt(filtrados.length)} de ${S.fmtInt(todos.length)} respostas`;
+      $('btn-xlsx').disabled = $('btn-csv').disabled = filtrados.length === 0;
+
+      const paginas = Math.max(1, Math.ceil(filtrados.length / POR_PAGINA));
+      if (pagina > paginas) pagina = paginas;
+      const fatia = filtrados.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA);
+
+      $('corpo').innerHTML = fatia.length ? fatia.map((r) => {
+        const media = S.mediaRegistro(r);
+        const desafios = r.aspectos || [];
+        return `<tr data-id="${C.esc(r.id)}" tabindex="0">
+          <td style="white-space:nowrap">${S.fmtData(r.timestamp)}</td>
+          <td>${r.nome ? C.esc(r.nome) : '<span style="color:var(--ink-muted)">anônimo</span>'}</td>
+          <td class="truncar">${C.esc(r.cargo || '—')}</td>
+          <td>${C.esc(r.departamento)}</td>
+          <td class="num">${S.fmt2(media)}</td>
+          <td class="num">${A.pilulaNps(r.nps)}</td>
+          <td class="truncar" title="${C.esc(desafios.join(', '))}">${desafios.length
+            ? C.esc(desafios[0]) + (desafios.length > 1 ? ` +${desafios.length - 1}` : '')
+            : '—'}</td>
+          <td class="truncar">${C.esc(r.comentarios || r.evitar || r.voltaria || '—')}</td>
+        </tr>`;
+      }).join('')
+        : `<tr><td colspan="${COLUNAS.length}"><p class="vazio-inline">
+             Nenhuma resposta combina com o filtro atual.</p></td></tr>`;
+
+      $('corpo').querySelectorAll('tr[data-id]').forEach((tr) => {
+        const abrir = () => abrirGaveta(filtrados.find((r) => r.id === tr.dataset.id));
+        tr.addEventListener('click', abrir);
+        tr.addEventListener('keydown', (e) => {
+          if (e.key === 'Enter') { e.preventDefault(); abrir(); }
+        });
+      });
+
+      $('paginacao').innerHTML = `
+        <span>${filtrados.length
+          ? `Mostrando ${S.fmtInt((pagina - 1) * POR_PAGINA + 1)}–${S.fmtInt(Math.min(pagina * POR_PAGINA, filtrados.length))} de ${S.fmtInt(filtrados.length)}`
+          : 'Nada para mostrar'}</span>
+        <span style="display:flex;gap:8px;align-items:center">
+          <button class="btn-acao" id="pg-ant" type="button" ${pagina <= 1 ? 'disabled' : ''}>← Anterior</button>
+          <span>Página ${pagina} de ${paginas}</span>
+          <button class="btn-acao" id="pg-prox" type="button" ${pagina >= paginas ? 'disabled' : ''}>Próxima →</button>
+        </span>`;
+      $('pg-ant')?.addEventListener('click', () => { pagina--; pintar(); window.scrollTo({ top: 0 }); });
+      $('pg-prox')?.addEventListener('click', () => { pagina++; pintar(); window.scrollTo({ top: 0 }); });
+    }
+
+    pintar();
+
+    /* ================= gaveta de detalhe ================= */
+    const gaveta = document.getElementById('gaveta');
+    const fundo = document.getElementById('gaveta-fundo');
+    let ultimoFoco = null;
+
+    function miniEscala(v) {
+      if (v == null) return '<span style="color:var(--ink-muted)">não respondeu</span>';
+      let s = '<span class="mini-escala" role="img" aria-label="nota ' + v + ' de 5">';
+      for (let i = 1; i <= 5; i++) s += `<i class="${i <= v ? 'on' : ''}"></i>`;
+      return s + `</span> <span style="font-variant-numeric:tabular-nums">${v}</span>`;
+    }
+
+    function abrirGaveta(r) {
+      if (!r) return;
+      ultimoFoco = document.activeElement;
+      document.getElementById('gaveta-titulo').textContent = r.nome || 'Resposta anônima';
+      document.getElementById('gaveta-sub').textContent =
+        [r.cargo, r.departamento, S.fmtDataHora(r.timestamp)].filter(Boolean).join(' · ');
+
+      const abertas = window.APP.ABERTAS
+        .map((a) => ({ ...a, texto: (r[a.id] || '').trim() }))
+        .filter((a) => a.texto);
+
+      document.getElementById('gaveta-corpo').innerHTML = `
+        <div class="gaveta-bloco">
+          <h3>Identificação</h3>
+          <dl style="margin:0">
+            <div class="par"><dt>Nome</dt><dd>${C.esc(r.nome || 'não informado')}</dd></div>
+            <div class="par"><dt>Cargo</dt><dd>${C.esc(r.cargo || 'não informado')}</dd></div>
+            <div class="par"><dt>Setor</dt><dd>${C.esc(r.departamento)}</dd></div>
+            <div class="par"><dt>Superior direto</dt><dd>${C.esc(r.superior || 'não informado')}</dd></div>
+            <div class="par"><dt>Respondido em</dt><dd>${S.fmtDataHora(r.timestamp)}</dd></div>
+          </dl>
+        </div>
+
+        <div class="gaveta-bloco">
+          <h3>Recomendação</h3>
+          <div class="par"><dt>Recomendaria a empresa</dt><dd>${A.pilulaNps(r.nps)}</dd></div>
+          <div class="par"><dt>Média das avaliações</dt>
+            <dd style="font-variant-numeric:tabular-nums">${S.fmt2(S.mediaRegistro(r))} / 5</dd></div>
+        </div>
+
+        <div class="gaveta-bloco">
+          <h3>Maiores desafios</h3>
+          ${(r.aspectos || []).length
+            ? `<div style="display:flex;flex-wrap:wrap;gap:7px">${r.aspectos
+                .map((a) => `<span class="pilula">${C.esc(a)}</span>`).join('')}</div>`
+            : '<p class="aberta-txt" style="color:var(--ink-2)">Nada marcado.</p>'}
+        </div>
+
+        <div class="gaveta-bloco">
+          <h3>Avaliação 1–5</h3>
+          <dl style="margin:0">${DIMS.map((d) =>
+            `<div class="par"><dt>${C.esc(d.curto)}</dt><dd>${miniEscala(r[d.id])}</dd></div>`).join('')}</dl>
+        </div>
+
+        <div class="gaveta-bloco">
+          <h3>Respostas abertas</h3>
+          ${abertas.length ? abertas.map((a) => `
+            <div style="margin-bottom:18px">
+              <div style="font-size:12px;font-weight:600;color:var(--ink-2);margin-bottom:5px">${C.esc(a.titulo)}</div>
+              <p class="aberta-txt">${C.esc(a.texto)}</p>
+            </div>`).join('')
+            : '<p class="aberta-txt" style="color:var(--ink-2)">Nenhum campo aberto preenchido.</p>'}
+        </div>`;
+
+      gaveta.hidden = false;
+      requestAnimationFrame(() => {
+        gaveta.classList.add('aberta');
+        fundo.classList.add('aberta');
+      });
+      document.getElementById('gaveta-fechar').focus();
+    }
+
+    function fecharGaveta() {
+      gaveta.classList.remove('aberta');
+      fundo.classList.remove('aberta');
+      setTimeout(() => { gaveta.hidden = true; }, 220);
+      ultimoFoco?.focus();
+    }
+
+    document.getElementById('gaveta-fechar').addEventListener('click', fecharGaveta);
+    fundo.addEventListener('click', fecharGaveta);
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape' && !gaveta.hidden) fecharGaveta();
+    });
+
+    /* ================= exportação ================= */
+
+    /** Colunas da aba principal — uma por campo do questionário. */
+    function colunasExport() {
+      return [
+        { id: 'timestamp',    titulo: 'Data/hora',        largura: 18 },
+        { id: 'nome',         titulo: 'Nome',             largura: 24 },
+        { id: 'cargo',        titulo: 'Cargo',            largura: 24 },
+        { id: 'departamento', titulo: 'Setor',            largura: 24 },
+        { id: 'superior',     titulo: 'Superior direto',  largura: 22 },
+        { id: 'aspectos',     titulo: 'Maiores desafios', largura: 42, quebra: true },
+        ...DIMS.map((d) => ({ id: d.id, titulo: d.curto, largura: 13 })),
+        { id: '_media',  titulo: 'Média geral (1–5)', largura: 14 },
+        { id: 'nps',     titulo: 'Recomendação (0–10)', largura: 16 },
+        { id: '_perfil', titulo: 'Perfil NPS',       largura: 13 },
+        { id: 'lideranca_detalhe', titulo: 'Detalhe sobre liderança', largura: 54, quebra: true },
+        { id: 'voltaria',          titulo: 'Trabalharia aqui novamente?', largura: 54, quebra: true },
+        { id: 'tres_pontos',       titulo: '3 pontos que mudaria', largura: 54, quebra: true },
+        { id: 'evitar',            titulo: 'O que evitaria a saída', largura: 54, quebra: true },
+        { id: 'comentarios',       titulo: 'Comentários livres', largura: 54, quebra: true },
+      ];
+    }
+
+    function linhaExport(r, cols) {
+      const perfil = S.perfilNps(r.nps);
+      const rotulos = { promotor: 'Promotor', neutro: 'Neutro', detrator: 'Detrator' };
+      return cols.map((c) => {
+        if (c.id === 'timestamp') {
+          const d = new Date(r.timestamp);
+          return isNaN(d) ? '' : d;
+        }
+        if (c.id === 'aspectos') return (r.aspectos || []).join(', ');
+        if (c.id === '_media') {
+          const m = S.mediaRegistro(r);
+          return m == null ? '' : Number(m.toFixed(2));
+        }
+        if (c.id === '_perfil') return perfil ? rotulos[perfil] : '';
+        const v = r[c.id];
+        return v == null || v === '' ? '' : v;
+      });
+    }
+
+    function abasResumo(regs) {
+      /* Resumo por setor */
+      const setoresF = S.setores(regs);
+      const colsSetor = [
+        { titulo: 'Setor', largura: 26 },
+        { titulo: 'Respostas', largura: 11 },
+        { titulo: 'Média geral', largura: 12 },
+        { titulo: 'eNPS', largura: 9 },
+        { titulo: 'Promotores', largura: 12 },
+        { titulo: 'Neutros', largura: 10 },
+        { titulo: 'Detratores', largura: 12 },
+        ...DIMS.map((d) => ({ titulo: d.curto, largura: 15 })),
+      ];
+      const linhasSetor = setoresF.map((s) => [
+        s.setor, s.n,
+        s.media == null ? '' : Number(s.media.toFixed(2)),
+        s.nps.score == null ? '' : Math.round(s.nps.score),
+        s.nps.promotores, s.nps.neutros, s.nps.detratores,
+        ...DIMS.map((d) => s.dims[d.id] == null ? '' : Number(s.dims[d.id].toFixed(2))),
+      ]);
+
+      /* Dimensões */
+      const dims = S.dimensoes(regs);
+      const colsDim = [
+        { titulo: 'Dimensão', largura: 30 },
+        { titulo: 'Média', largura: 10 },
+        { titulo: 'Respostas', largura: 11 },
+        { titulo: 'Nota 1', largura: 8 }, { titulo: 'Nota 2', largura: 8 },
+        { titulo: 'Nota 3', largura: 8 }, { titulo: 'Nota 4', largura: 8 },
+        { titulo: 'Nota 5', largura: 8 },
+        { titulo: '% negativo', largura: 12 },
+        { titulo: '% neutro', largura: 11 },
+        { titulo: '% positivo', largura: 12 },
+      ];
+      const linhasDim = dims.map((d) => [
+        d.longo,
+        d.media == null ? '' : Number(d.media.toFixed(2)),
+        d.n, d.dist[1], d.dist[2], d.dist[3], d.dist[4], d.dist[5],
+        d.pctNeg == null ? '' : Number(d.pctNeg.toFixed(1)),
+        d.pctNeu == null ? '' : Number(d.pctNeu.toFixed(1)),
+        d.pctPos == null ? '' : Number(d.pctPos.toFixed(1)),
+      ]);
+
+      /* Desafios */
+      const des = S.desafios(regs);
+      const colsDes = [
+        { titulo: 'Desafio', largura: 40 },
+        { titulo: 'Citações', largura: 11 },
+        { titulo: '% das respostas', largura: 16 },
+      ];
+      const linhasDes = des.map((d) => [d.label, d.n, Number(d.pct.toFixed(1))]);
+
+      /* Comentários */
+      const colsCom = [
+        { titulo: 'Data/hora', largura: 18 },
+        { titulo: 'Setor', largura: 24 },
+        { titulo: 'Cargo', largura: 24 },
+        { titulo: 'Pergunta', largura: 30 },
+        { titulo: 'Resposta', largura: 80, quebra: true },
+      ];
+      const linhasCom = S.verbatims(regs).map((v) => {
+        const d = new Date(v.timestamp);
+        return [isNaN(d) ? '' : d, v.setor, v.cargo, v.pergunta, v.texto];
+      });
+
+      return [
+        { nome: 'Resumo por setor', colunas: colsSetor, linhas: linhasSetor },
+        { nome: 'Dimensões',        colunas: colsDim,   linhas: linhasDim },
+        { nome: 'Desafios',         colunas: colsDes,   linhas: linhasDes },
+        { nome: 'Comentários',      colunas: colsCom,   linhas: linhasCom },
+      ];
+    }
+
+    function nomeArquivo(ext) {
+      const d = new Date();
+      const stamp = d.getFullYear() + '-'
+        + String(d.getMonth() + 1).padStart(2, '0') + '-'
+        + String(d.getDate()).padStart(2, '0');
+      const escopo = filtro.setor ? '-' + filtro.setor.replace(/[^\wÀ-ÿ]+/g, '-').toLowerCase() : '';
+      return `pesquisa-desligamento${escopo}-${stamp}.${ext}`;
+    }
+
+    function exportar(formato) {
+      if (!filtrados.length) return;
+      const cols = colunasExport();
+      const linhas = filtrados.map((r) => linhaExport(r, cols));
+      const btn = document.getElementById(formato === 'xlsx' ? 'btn-xlsx' : 'btn-csv');
+      const rotulo = btn.textContent;
+      btn.disabled = true;
+      btn.textContent = 'Gerando…';
+
+      try {
+        if (formato === 'csv') {
+          X.baixar(X.csv(cols, linhas), nomeArquivo('csv'));
+        } else {
+          const blob = X.build([
+            { nome: 'Respostas', colunas: cols, linhas },
+            ...abasResumo(filtrados),
+          ]);
+          X.baixar(blob, nomeArquivo('xlsx'));
+        }
+      } catch (err) {
+        alert('Não foi possível gerar o arquivo: ' + err.message);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = rotulo;
+      }
+    }
+  });
+})();
+</script>
+</body>
+</html>

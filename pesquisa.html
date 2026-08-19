@@ -1,0 +1,269 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="robots" content="noindex">
+<title>Pesquisa de Desligamento · Azime</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600&family=IBM+Plex+Sans:wght@400;500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="assets/tokens.css">
+<link rel="stylesheet" href="assets/survey.css">
+</head>
+<body class="survey">
+
+<div class="wrap">
+  <div class="journey" id="journey" aria-hidden="true"></div>
+  <div class="card" id="card" role="group" aria-live="polite"></div>
+  <p class="footer-note">
+    Suas respostas são confidenciais e usadas apenas para fins de melhoria interna.<br>
+    <a href="dashboard.html">Área de gestão</a>
+  </p>
+</div>
+
+<script src="assets/config.js"></script>
+<script src="assets/store.js"></script>
+<script>
+(function () {
+  const STEPS = window.APP.STEPS;
+  const respostas = {};
+  let atual = 0;
+  let tentouAvancar = false;
+
+  const elCard = document.getElementById('card');
+  const elJourney = document.getElementById('journey');
+
+  /* Aquece a detecção de modo (API vs local) enquanto a pessoa responde,
+     para o envio no fim não esperar por isso. */
+  window.Store.ready();
+
+  /* ---------------- passos visíveis ---------------- */
+  function visiveis() {
+    return STEPS.filter((s) => !s.condition || s.condition(respostas));
+  }
+
+  function respondido(step) {
+    const v = respostas[step.id];
+    if (step.type === 'choice') return Array.isArray(v) && v.length > 0;
+    if (step.type === 'scale5' || step.type === 'scale10') return typeof v === 'number';
+    return typeof v === 'string' && v.trim() !== '';
+  }
+
+  /* ---------------- construtores ---------------- */
+  function el(tag, props, filhos) {
+    const n = document.createElement(tag);
+    Object.assign(n, props || {});
+    (filhos || []).forEach((c) => n.appendChild(c));
+    return n;
+  }
+  function txt(tag, cls, texto) {
+    const n = document.createElement(tag);
+    if (cls) n.className = cls;
+    n.textContent = texto;
+    return n;
+  }
+
+  function navegacao(vs) {
+    const nav = el('div', { className: 'nav' });
+    const voltar = el('button', {
+      className: 'btn btn-ghost', type: 'button',
+      textContent: atual === 0 ? '' : '← Voltar',
+      onclick: anterior,
+    });
+    if (atual === 0) voltar.style.visibility = 'hidden';
+
+    const ultimo = atual === vs.length - 1;
+    const avancar = el('button', {
+      className: 'btn btn-primary', type: 'button',
+      textContent: ultimo ? 'Enviar respostas →' : 'Continuar →',
+      onclick: proximo,
+    });
+    nav.appendChild(voltar);
+    nav.appendChild(avancar);
+    return nav;
+  }
+
+  /* ---------------- render ---------------- */
+  function render() {
+    const vs = visiveis();
+    const step = vs[atual];
+    trilha(vs, atual);
+    elCard.innerHTML = '';
+
+    if (step.type === 'intro') {
+      elCard.appendChild(txt('div', 'eyebrow', 'Pesquisa de desligamento'));
+      elCard.appendChild(txt('h1', null, 'Sua percepção importa para a gente evoluir'));
+      elCard.appendChild(txt('p', 'sub',
+        'Leva cerca de 5 minutos. Não existe resposta certa ou errada — quanto mais honesta, mais útil ela é.'));
+      const nav = el('div', { className: 'nav' });
+      nav.appendChild(el('span'));
+      nav.appendChild(el('button', {
+        className: 'btn btn-primary', type: 'button', textContent: 'Começar →', onclick: proximo,
+      }));
+      elCard.appendChild(nav);
+      return;
+    }
+
+    if (step.type === 'final') {
+      const fim = el('div', { className: 'final' });
+      const marca = el('div', { className: 'mark' });
+      marca.innerHTML = '<svg viewBox="0 0 24 24" stroke-width="2" stroke-linecap="round" '
+        + 'stroke-linejoin="round"><polyline points="20 6 9 17 4 12"></polyline></svg>';
+      fim.appendChild(marca);
+      fim.appendChild(txt('h1', null, 'Obrigado pelo seu tempo'));
+      fim.appendChild(txt('p', 'sub',
+        'Suas respostas foram registradas. Desejamos sucesso na sua próxima etapa.'));
+      elCard.appendChild(fim);
+      return;
+    }
+
+    elCard.appendChild(txt('div', 'eyebrow', step.block));
+    elCard.appendChild(txt('h1', null, step.title));
+    if (step.sub) elCard.appendChild(txt('p', 'sub', step.sub));
+
+    if (step.type === 'text' || step.type === 'textarea') {
+      const campo = el('div', { className: 'field' });
+      const id = 'input-' + step.id;
+      const rot = txt('label', null, step.label || 'Sua resposta');
+      rot.htmlFor = id;
+      campo.appendChild(rot);
+      const entrada = step.type === 'text'
+        ? el('input', { type: 'text', id, value: respostas[step.id] || '', placeholder: 'Digite aqui' })
+        : el('textarea', { id, value: respostas[step.id] || '', placeholder: 'Digite aqui' });
+      entrada.addEventListener('input', () => { respostas[step.id] = entrada.value; });
+      if (step.type === 'text') {
+        entrada.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); proximo(); } });
+      }
+      campo.appendChild(entrada);
+      elCard.appendChild(campo);
+      setTimeout(() => entrada.focus(), 30);
+    }
+
+    if (step.type === 'choice') {
+      const grade = el('div', { className: 'choice-grid', role: step.multi ? 'group' : 'radiogroup' });
+      const sel = respostas[step.id] || [];
+      step.options.forEach((opcao) => {
+        const escolhido = sel.includes(opcao);
+        const b = el('button', {
+          type: 'button',
+          className: 'choice' + (step.multi ? '' : ' radio') + (escolhido ? ' selected' : ''),
+          onclick: () => alternar(step, opcao),
+        });
+        b.setAttribute('aria-pressed', String(escolhido));
+        b.appendChild(el('span', { className: 'box' }));
+        b.appendChild(txt('span', null, opcao));
+        grade.appendChild(b);
+      });
+      elCard.appendChild(grade);
+    }
+
+    if (step.type === 'scale5' || step.type === 'scale10') {
+      const campo = el('div', { className: 'field' });
+      const dez = step.type === 'scale10';
+      const nums = dez ? Array.from({ length: 11 }, (_, i) => i) : [1, 2, 3, 4, 5];
+      const escala = el('div', { className: 'scale' + (dez ? ' wide' : '') });
+      nums.forEach((n) => {
+        const b = el('button', {
+          type: 'button', textContent: String(n),
+          className: respostas[step.id] === n ? 'selected' : '',
+          onclick: () => marcar(step, n),
+        });
+        b.setAttribute('aria-label', 'Nota ' + n);
+        b.setAttribute('aria-pressed', String(respostas[step.id] === n));
+        escala.appendChild(b);
+      });
+      campo.appendChild(escala);
+      const rotulos = el('div', { className: 'scale-labels' });
+      rotulos.appendChild(txt('span', null, dez ? 'Nada provável' : 'Discordo totalmente'));
+      rotulos.appendChild(txt('span', null, dez ? 'Extremamente provável' : 'Concordo totalmente'));
+      campo.appendChild(rotulos);
+      elCard.appendChild(campo);
+    }
+
+    if (tentouAvancar && step.required && !respondido(step)) {
+      elCard.appendChild(txt('p', 'aviso', '⚠ Escolha ao menos uma opção para continuar.'));
+    }
+
+    elCard.appendChild(navegacao(vs));
+  }
+
+  /* ---------------- trilha ---------------- */
+  function trilha(vs, idx) {
+    elJourney.innerHTML = '';
+    const segmentos = Math.min(Math.max(vs.length - 1, 1), 12);
+    const responsaveis = Math.max(vs.length - 2, 1);
+    const progresso = Math.max(0, idx - 1);
+    for (let i = 0; i < segmentos; i++) {
+      const seg = el('div', { className: 'seg' });
+      const limite = Math.round((i / segmentos) * responsaveis);
+      if (progresso > limite) seg.classList.add('done');
+      else if (progresso === limite) seg.classList.add('current');
+      seg.innerHTML = '<div class="fill"></div>';
+      elJourney.appendChild(seg);
+    }
+  }
+
+  /* ---------------- interação ---------------- */
+  function alternar(step, opcao) {
+    if (!respostas[step.id]) respostas[step.id] = [];
+    if (step.multi) {
+      const i = respostas[step.id].indexOf(opcao);
+      if (i > -1) respostas[step.id].splice(i, 1); else respostas[step.id].push(opcao);
+      render();
+    } else {
+      respostas[step.id] = [opcao];
+      render();
+      // Escolha única já é decisão: segue adiante depois de mostrar a marca.
+      setTimeout(proximo, 260);
+    }
+  }
+
+  function marcar(step, n) {
+    respostas[step.id] = n;
+    render();
+    setTimeout(proximo, 260);
+  }
+
+  function proximo() {
+    const vs = visiveis();
+    const step = vs[atual];
+
+    if (step.required && !respondido(step)) {
+      tentouAvancar = true;
+      render();
+      return;
+    }
+    tentouAvancar = false;
+
+    if (atual === vs.length - 1) { enviar(); return; }
+    atual++;
+    render();
+  }
+
+  function anterior() {
+    if (atual === 0) return;
+    tentouAvancar = false;
+    atual--;
+    render();
+  }
+
+  /* ---------------- envio ---------------- */
+  async function enviar() {
+    elCard.innerHTML = '';
+    const carregando = el('div', { className: 'final' });
+    carregando.appendChild(txt('p', 'sub', 'Enviando respostas...'));
+    elCard.appendChild(carregando);
+
+    try { await window.Store.add(respostas); } catch { /* Store nunca rejeita, mas fica a rede */ }
+
+    const vs = visiveis();
+    atual = vs.length - 1;
+    render();
+  }
+
+  render();
+})();
+</script>
+</body>
+</html>
